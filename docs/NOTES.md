@@ -95,3 +95,19 @@
 
 **Q2: Why do we validate coordinates against campus bounding boxes on the server using Pydantic when the Leaflet map already restricts clicks to campus bounds?**  
 **A2:** Client-side UI constraints are purely advisory for user experience and can be easily bypassed by direct API calls, DevTools, or forged HTTP requests. Enforcing campus bounding box validation on the server via Pydantic model validators guarantees that invalid, out-of-bounds coordinates can never be persisted in SQLite, ensuring the game boundary rule is non-negotiable.
+
+## Task 7: Team registration with one device per team, and the lobby
+
+### 5-Line Interview Summary
+- Built `POST /api/register` to create teams with unique 8-character codes (e.g. `PHX-4821`) using Python's `secrets` module with collision retries under `write_tx`.
+- Bound one device per team by issuing a high-entropy device token stored strictly as a SHA-256 hash in SQLite and set as an HttpOnly `quest_device` cookie.
+- Implemented `POST /api/join` protected by per-IP rate limiting, rejecting duplicate joins with HTTP 409 ("This team is already playing on another device").
+- Created `GET /api/state` protected by constant-time token verification to seamlessly restore team lobby state upon page reload without relying on localStorage.
+- Built a mobile-first player interface featuring clean tabbed registration, dynamic member inputs, and an outdoors-readable waiting lobby with quick quest rules.
+
+### Interview Questions & Answers
+**Q1: Why do we store only the SHA-256 hash of the device token in the database rather than the plaintext token itself?**  
+**A1:** Storing only cryptographic hashes follows defense-in-depth principles. If the SQLite database file or a backup is ever compromised, attackers cannot forge device tokens or hijack playing teams because SHA-256 is an irreversible one-way function. The server only validates incoming tokens by hashing them and using `hmac.compare_digest` against the database record.
+
+**Q2: Why does the client restore its session using the HttpOnly `quest_device` cookie and `GET /api/state` instead of keeping team state in browser `localStorage`?**  
+**A2:** Browser `localStorage` can be viewed and modified by client scripts or lost if browser storage is cleared, creating synchronization and trust issues. Keeping all authoritative state on the server and authenticating strictly via an HttpOnly cookie prevents client-side tampering, keeps sensitive tokens invisible to JavaScript, and ensures a seamless resume on page reload.

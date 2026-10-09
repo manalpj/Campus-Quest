@@ -6,6 +6,7 @@ and the require_admin dependency protecting administrative routes.
 
 import hashlib
 import hmac
+import sqlite3
 import time
 from typing import Optional
 from fastapi import HTTPException, Request, Response
@@ -135,3 +136,90 @@ def require_admin(request: Request) -> str:
         )
 
     return admin_user
+
+
+# --- Player Device Authentication ---
+
+DEVICE_COOKIE_NAME = "quest_device"
+DEVICE_SESSION_DURATION_S = 7 * 24 * 3600  # 7 days
+
+
+def generate_device_token() -> str:
+    """Generate a high-entropy URL-safe random token for player device binding."""
+    import secrets
+
+    return secrets.token_urlsafe(32)
+
+
+def hash_device_token(token: str) -> str:
+    """Compute the SHA-256 hexadecimal hash of a player device token."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def verify_device_token(token: str, stored_hash: str) -> bool:
+    """Verify that a plaintext device token matches the stored SHA-256 hash."""
+    if not token or not stored_hash:
+        return False
+    computed_hash = hash_device_token(token)
+    return hmac.compare_digest(computed_hash, stored_hash)
+
+
+def set_device_cookie(response: Response, token: str) -> None:
+    """Attach secure HttpOnly quest_device cookie to response."""
+    response.set_cookie(
+        key=DEVICE_COOKIE_NAME,
+        value=token,
+        max_age=DEVICE_SESSION_DURATION_S,
+        httponly=True,
+        samesite="lax",
+        secure=(config.ENV == "production"),
+    )
+
+
+def clear_device_cookie(response: Response) -> None:
+    """Clear quest_device cookie."""
+    response.delete_cookie(
+        key=DEVICE_COOKIE_NAME,
+        httponly=True,
+        samesite="lax",
+        secure=(config.ENV == "production"),
+    )
+
+
+def require_team_device(
+    request: Request,
+) -> sqlite3.Row:
+    """FastAPI dependency: verifies quest_device cookie against stored device_hash in SQLite.
+
+    Returns the validated sqlite3.Row representing the team.
+    Raises 401 Unauthorized if cookie is missing, empty, or fails hash verification.
+    """
+    import db
+
+    cookie_val = request.cookies.get(DEVICE_COOKIE_NAME)
+    if not cookie_val:
+        raise HTTPException(
+            status_code=401,
+            detail="Device authentication required",
+        )
+
+    token_hash = hash_device_token(cookie_val)
+    conn = db.get_connection()
+    try:
+        team = db.get_team_by_device_hash(conn, token_hash)
+        if not team or not team["device_hash"]:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or unbound device token",
+            )
+
+        if not hmac.compare_digest(token_hash, team["device_hash"]):
+            raise HTTPException(
+                status_code=401,
+                detail="Device token verification failed",
+            )
+
+        return team
+    finally:
+        conn.close()
+

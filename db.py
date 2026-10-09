@@ -295,3 +295,106 @@ def delete_checkpoint(conn: sqlite3.Connection, checkpoint_id: int) -> bool:
             (del_pos,),
         )
         return True
+
+
+# --- Settings & Team Management Operations ---
+
+
+def get_setting(conn: sqlite3.Connection, key: str) -> Optional[str]:
+    """Retrieve setting value by key, or None if not set."""
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    return row["value"] if row else None
+
+
+def get_team_by_code(conn: sqlite3.Connection, code: str) -> Optional[sqlite3.Row]:
+    """Fetch team row by unique team code (case-insensitive lookup)."""
+    return conn.execute(
+        "SELECT * FROM teams WHERE UPPER(code) = UPPER(?)",
+        (code.strip(),),
+    ).fetchone()
+
+
+def get_team_by_id(conn: sqlite3.Connection, team_id: int) -> Optional[sqlite3.Row]:
+    """Fetch team row by primary key id."""
+    return conn.execute("SELECT * FROM teams WHERE id = ?", (team_id,)).fetchone()
+
+
+def get_team_by_device_hash(conn: sqlite3.Connection, device_hash: str) -> Optional[sqlite3.Row]:
+    """Fetch team row matching device token hash."""
+    return conn.execute(
+        "SELECT * FROM teams WHERE device_hash = ?",
+        (device_hash,),
+    ).fetchone()
+
+
+def create_team(
+    conn: sqlite3.Connection,
+    name: str,
+    members: list[str],
+    max_retries: int = 5,
+) -> tuple[sqlite3.Row, str]:
+    """Register a new team, generating a unique team code and device token.
+
+    Stores the SHA-256 hash of the device token.
+    Runs within write_tx (BEGIN IMMEDIATE).
+    Returns (team_row, device_token).
+    """
+    import json
+    import time
+    import auth
+    import game
+
+    with write_tx(conn):
+        reg_open = get_setting(conn, "registration_open")
+        if reg_open != "1":
+            raise ValueError("Registration is currently closed by the organizer.")
+
+        members_json = json.dumps(members)
+        now = time.time()
+
+        for _ in range(max_retries):
+            code = game.generate_team_code(name)
+            token = auth.generate_device_token()
+            token_hash = auth.hash_device_token(token)
+
+            try:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO teams (name, code, members, device_hash, last_seen)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (name, code, members_json, token_hash, now),
+                )
+                team_id = cursor.lastrowid
+                conn.execute(
+                    "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'team_registered', ?)",
+                    (now, team_id, f"Team {name} registered with code {code}"),
+                )
+                row = get_team_by_id(conn, team_id)
+                assert row is not None
+                return row, token
+            except sqlite3.IntegrityError:
+                # Collision on code UNIQUE constraint; retry with a new code
+                continue
+
+        raise RuntimeError("Failed to generate a unique team code after maximum retries.")
+
+
+def bind_team_device(conn: sqlite3.Connection, team_id: int, device_hash: str) -> None:
+    """Bind a new device hash to a team whose device was cleared.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    """
+    import time
+
+    with write_tx(conn):
+        now = time.time()
+        conn.execute(
+            "UPDATE teams SET device_hash = ?, last_seen = ? WHERE id = ?",
+            (device_hash, now, team_id),
+        )
+        conn.execute(
+            "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'device_bound', 'Device bound to team')",
+            (now, team_id),
+        )
+

@@ -1,14 +1,287 @@
-// Campus Quest - Client Map & Live Location Tracker
-// Client-side only: fetches /api/config, mounts Leaflet map, watches geolocation.
+// Campus Quest - Client Map, Registration & Lobby Controller
+// Mobile-first, zero local game state (all state verified against server cookies).
 
 document.addEventListener('DOMContentLoaded', () => {
   const statusEl = document.getElementById('gps-status');
+
+  // Modal elements
+  const authOverlay = document.getElementById('auth-overlay');
+  const lobbyOverlay = document.getElementById('lobby-overlay');
+  const authAlert = document.getElementById('auth-alert');
+
+  // Tab elements
+  const tabBtnRegister = document.getElementById('tab-btn-register');
+  const tabBtnJoin = document.getElementById('tab-btn-join');
+  const formRegister = document.getElementById('form-register');
+  const formJoin = document.getElementById('form-join');
+
+  // Form inputs & controls
+  const regTeamName = document.getElementById('reg-team-name');
+  const membersContainer = document.getElementById('members-inputs');
+  const btnAddMember = document.getElementById('btn-add-member');
+  const btnSubmitRegister = document.getElementById('btn-submit-register');
+  const joinTeamCode = document.getElementById('join-team-code');
+  const btnSubmitJoin = document.getElementById('btn-submit-join');
+
+  // Lobby elements
+  const lobbyTeamName = document.getElementById('lobby-team-name');
+  const lobbyTeamCode = document.getElementById('lobby-team-code');
+  const lobbyMembersList = document.getElementById('lobby-members-list');
+  const lobbyDeviceStatus = document.getElementById('lobby-device-status');
 
   function setStatus(message, statusClass) {
     if (!statusEl) return;
     statusEl.textContent = message;
     statusEl.className = 'gps-status-pill ' + statusClass;
   }
+
+  function showAlert(msg, isError = true) {
+    if (!authAlert) return;
+    authAlert.textContent = msg;
+    authAlert.className = 'alert-box ' + (isError ? 'alert-error' : 'alert-success');
+    authAlert.hidden = false;
+  }
+
+  function clearAlert() {
+    if (!authAlert) return;
+    authAlert.hidden = true;
+    authAlert.textContent = '';
+  }
+
+  // --- Tab Navigation ---
+
+  if (tabBtnRegister && tabBtnJoin) {
+    tabBtnRegister.addEventListener('click', () => {
+      tabBtnRegister.classList.add('active');
+      tabBtnRegister.setAttribute('aria-selected', 'true');
+      tabBtnJoin.classList.remove('active');
+      tabBtnJoin.setAttribute('aria-selected', 'false');
+      formRegister.hidden = false;
+      formJoin.hidden = true;
+      clearAlert();
+    });
+
+    tabBtnJoin.addEventListener('click', () => {
+      tabBtnJoin.classList.add('active');
+      tabBtnJoin.setAttribute('aria-selected', 'true');
+      tabBtnRegister.classList.remove('active');
+      tabBtnRegister.setAttribute('aria-selected', 'false');
+      formJoin.hidden = false;
+      formRegister.hidden = true;
+      clearAlert();
+    });
+  }
+
+  // --- Dynamic Member Inputs ---
+
+  function updateMemberRows() {
+    if (!membersContainer) return;
+    const rows = membersContainer.querySelectorAll('.member-input-row');
+    rows.forEach((row, index) => {
+      const input = row.querySelector('.member-input');
+      if (input && !input.value) {
+        input.placeholder = index === 0 ? 'Member 1 (Captain)' : `Member ${index + 1}`;
+      }
+      let removeBtn = row.querySelector('.btn-remove-member');
+      if (rows.length > 2) {
+        if (!removeBtn) {
+          removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'btn-remove-member';
+          removeBtn.setAttribute('aria-label', `Remove member ${index + 1}`);
+          removeBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          `;
+          removeBtn.addEventListener('click', () => {
+            row.remove();
+            updateMemberRows();
+          });
+          row.appendChild(removeBtn);
+        }
+      } else if (removeBtn) {
+        removeBtn.remove();
+      }
+    });
+  }
+
+  if (btnAddMember && membersContainer) {
+    btnAddMember.addEventListener('click', () => {
+      const currentRows = membersContainer.querySelectorAll('.member-input-row');
+      if (currentRows.length >= 8) {
+        showAlert('Maximum 8 members permitted per team.');
+        return;
+      }
+      const newIndex = currentRows.length + 1;
+      const row = document.createElement('div');
+      row.className = 'member-input-row';
+      row.innerHTML = `
+        <input type="text" class="member-input" required minlength="1" maxlength="30" placeholder="Member ${newIndex}" autocomplete="off">
+      `;
+      membersContainer.appendChild(row);
+      updateMemberRows();
+      const input = row.querySelector('.member-input');
+      if (input) input.focus();
+    });
+    updateMemberRows();
+  }
+
+  // --- Registration Handler ---
+
+  if (formRegister) {
+    formRegister.addEventListener('submit', (e) => {
+      e.preventDefault();
+      clearAlert();
+
+      const name = regTeamName ? regTeamName.value.trim() : '';
+      if (name.length < 2 || name.length > 30) {
+        showAlert('Team name must be between 2 and 30 characters.');
+        return;
+      }
+
+      const memberInputs = membersContainer.querySelectorAll('.member-input');
+      const members = [];
+      memberInputs.forEach((input) => {
+        const val = input.value.trim();
+        if (val) members.push(val);
+      });
+
+      if (members.length < 2) {
+        showAlert('Please provide at least 2 team members.');
+        return;
+      }
+
+      btnSubmitRegister.disabled = true;
+      btnSubmitRegister.textContent = 'Registering team...';
+
+      fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, members }),
+      })
+        .then(async (res) => {
+          btnSubmitRegister.disabled = false;
+          btnSubmitRegister.textContent = 'Register team';
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.detail || 'Registration failed');
+          }
+          return data;
+        })
+        .then((teamData) => {
+          showLobby({
+            name: teamData.name,
+            code: teamData.code,
+            members: teamData.members,
+            device_status: "this phone is your team's device",
+            game_state: 'setup',
+          });
+        })
+        .catch((err) => {
+          btnSubmitRegister.disabled = false;
+          btnSubmitRegister.textContent = 'Register team';
+          showAlert(err.message);
+        });
+    });
+  }
+
+  // --- Join Handler ---
+
+  if (formJoin) {
+    formJoin.addEventListener('submit', (e) => {
+      e.preventDefault();
+      clearAlert();
+
+      const code = joinTeamCode ? joinTeamCode.value.trim().toUpperCase() : '';
+      if (!code) {
+        showAlert('Please enter a team code.');
+        return;
+      }
+
+      btnSubmitJoin.disabled = true;
+      btnSubmitJoin.textContent = 'Joining team...';
+
+      fetch('/api/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      })
+        .then(async (res) => {
+          btnSubmitJoin.disabled = false;
+          btnSubmitJoin.textContent = 'Join with code';
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.detail || 'Failed to join team');
+          }
+          return data;
+        })
+        .then((teamData) => {
+          showLobby({
+            name: teamData.name,
+            code: teamData.code,
+            members: teamData.members,
+            device_status: "this phone is your team's device",
+            game_state: 'setup',
+          });
+        })
+        .catch((err) => {
+          btnSubmitJoin.disabled = false;
+          btnSubmitJoin.textContent = 'Join with code';
+          showAlert(err.message);
+        });
+    });
+  }
+
+  // --- Lobby Display Controller ---
+
+  function showLobby(state) {
+    if (authOverlay) authOverlay.hidden = true;
+    if (lobbyOverlay) lobbyOverlay.hidden = false;
+
+    if (lobbyTeamName) lobbyTeamName.textContent = state.name;
+    if (lobbyTeamCode) lobbyTeamCode.textContent = state.code;
+    if (lobbyDeviceStatus && state.device_status) {
+      lobbyDeviceStatus.textContent = state.device_status;
+    }
+
+    if (lobbyMembersList) {
+      lobbyMembersList.innerHTML = '';
+      (state.members || []).forEach((member) => {
+        const li = document.createElement('li');
+        li.className = 'member-chip';
+        li.textContent = member;
+        lobbyMembersList.appendChild(li);
+      });
+    }
+  }
+
+  // --- Session Restoration Check ---
+
+  function checkSession() {
+    fetch('/api/state')
+      .then((res) => {
+        if (res.ok) {
+          return res.json().then((state) => {
+            showLobby(state);
+          });
+        }
+        if (res.status === 401) {
+          if (authOverlay) authOverlay.hidden = false;
+          if (lobbyOverlay) lobbyOverlay.hidden = true;
+        }
+      })
+      .catch(() => {
+        if (authOverlay) authOverlay.hidden = false;
+        if (lobbyOverlay) lobbyOverlay.hidden = true;
+      });
+  }
+
+  // Always check server session on page load
+  checkSession();
+
+  // --- Map & GPS Initialization ---
 
   fetch('/api/config')
     .then((response) => {
@@ -127,3 +400,4 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   }
 });
+

@@ -39,3 +39,28 @@ def compute_target_position(
     if requested_position < 1:
         return 1
     return requested_position
+
+
+def generate_team_code(name: str) -> str:
+    """Generate a readable team code like PHX-4821.
+
+    Uses first 3 alphabetical letters of the team name (uppercase),
+    padded with random uppercase letters if fewer than 3 letters exist,
+    followed by a hyphen and 4 cryptographically secure random digits.
+    """
+    import secrets
+    import string
+
+    clean_letters = [c.upper() for c in name if c.isalpha()]
+    while len(clean_letters) < 3:
+        clean_letters.append(secrets.choice(string.ascii_uppercase))
+
+    prefix = "".join(clean_letters[:3])
+    digits = f"{secrets.randbelow(10000):04d}"
+    return f"{prefix}-{digits}"
+
+
+def normalize_team_code(code: str) -> str:
+    """Normalize input team code by trimming whitespace and capitalizing."""
+    return code.strip().upper()
+

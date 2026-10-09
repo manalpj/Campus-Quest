@@ -39,6 +39,117 @@
     </button>
   </div>
 
+  <!-- Player Onboarding & Team Registration Overlay -->
+  <div id="auth-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+    <div class="overlay-card">
+      <div class="overlay-header">
+        <h1 id="auth-title" class="overlay-title">Campus Quest</h1>
+        <p class="overlay-subtitle">DAVV IET Campus geofenced clue hunt</p>
+      </div>
+
+
+      <nav class="auth-tabs" role="tablist" aria-label="Team entrance options">
+        <button id="tab-btn-register" class="tab-btn active" role="tab" aria-selected="true" aria-controls="form-register">
+          Register team
+        </button>
+        <button id="tab-btn-join" class="tab-btn" role="tab" aria-selected="false" aria-controls="form-join">
+          Join with code
+        </button>
+      </nav>
+
+      <div id="auth-alert" class="alert-box alert-error" role="alert" aria-live="polite" hidden></div>
+
+      <!-- Registration Panel -->
+      <form id="form-register" class="auth-panel" role="tabpanel" aria-labelledby="tab-btn-register">
+        <div class="form-group">
+          <label for="reg-team-name">Team name</label>
+          <input type="text" id="reg-team-name" name="name" required minlength="2" maxlength="30" placeholder="e.g. Phoenix Pioneers" autocomplete="off">
+        </div>
+
+        <div class="form-group">
+          <div class="label-row">
+            <label>Team members (at least 2)</label>
+            <span class="label-hint">1 to 30 chars each</span>
+          </div>
+          <div id="members-inputs" class="members-inputs-list">
+            <div class="member-input-row">
+              <input type="text" class="member-input" required minlength="1" maxlength="30" placeholder="Member 1 (Captain)" autocomplete="off">
+            </div>
+            <div class="member-input-row">
+              <input type="text" class="member-input" required minlength="1" maxlength="30" placeholder="Member 2" autocomplete="off">
+            </div>
+          </div>
+          <button type="button" id="btn-add-member" class="btn btn-secondary btn-small">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Add another member
+          </button>
+        </div>
+
+        <button type="submit" id="btn-submit-register" class="btn btn-primary btn-block">
+          Register team
+        </button>
+      </form>
+
+      <!-- Join Panel -->
+      <form id="form-join" class="auth-panel" role="tabpanel" aria-labelledby="tab-btn-join" hidden>
+        <div class="form-group">
+          <label for="join-team-code">Team code</label>
+          <input type="text" id="join-team-code" name="code" required minlength="3" maxlength="12" placeholder="e.g. PHX-4821" autocomplete="off" class="team-code-input">
+          <p class="field-hint">If your team's device was released by an organizer, enter the team code here to bind this phone.</p>
+        </div>
+
+        <button type="submit" id="btn-submit-join" class="btn btn-primary btn-block">
+          Join with code
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Player Lobby Overlay (Shown after registration / join before game start) -->
+  <div id="lobby-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="lobby-team-name" hidden>
+    <div class="overlay-card">
+      <div class="lobby-header">
+        <span class="status-badge status-waiting">Waiting for the organizer to start</span>
+        <h2 id="lobby-team-name" class="lobby-title">Your Team</h2>
+        <div class="team-code-banner">
+          <span class="team-code-label">Team code:</span>
+          <span id="lobby-team-code" class="team-code-value">---</span>
+        </div>
+      </div>
+
+      <div class="device-pill">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
+        </svg>
+        <span id="lobby-device-status">This phone is your team's device</span>
+      </div>
+
+      <div class="lobby-section">
+        <h3 class="section-label">Team members</h3>
+        <ul id="lobby-members-list" class="members-chips-list"></ul>
+      </div>
+
+      <div class="lobby-section rules-card">
+        <h3 class="section-label">Quest rules</h3>
+        <ul class="rules-list">
+          <li><strong>Geofenced checkpoints:</strong> Walk together to the physical location to unlock clues.</li>
+          <li><strong>One phone:</strong> Only this registered phone tracks your team's unlocks.</li>
+          <li><strong>Power-ups:</strong> Hints add +3 min penalty; Radars reveal live distance for 60 seconds.</li>
+          <li><strong>Keep awake:</strong> Keep this browser tab open and your screen unlocked.</li>
+        </ul>
+      </div>
+
+      <div class="lobby-footer">
+        <p class="lobby-note">Stay in IET campus bounds. The game begins when the organizer triggers the start signal.</p>
+      </div>
+
+    </div>
+  </div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/app.js"></script>
 </body>

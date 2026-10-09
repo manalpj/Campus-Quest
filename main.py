@@ -5,6 +5,7 @@ static file delivery for the player and administrative interfaces.
 """
 
 from contextlib import asynccontextmanager
+import json
 import os
 from typing import Optional
 from pathlib import Path
@@ -12,7 +13,7 @@ import sqlite3
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 import auth
 import config
@@ -41,6 +42,47 @@ class AdminLoginRequest(BaseModel):
 
     username: str = Field(..., min_length=1, max_length=64, description="Administrator username")
     password: str = Field(..., min_length=1, max_length=256, description="Administrator passphrase")
+
+
+class TeamRegisterRequest(BaseModel):
+    """Validated input model for player team registration."""
+
+    name: str = Field(..., min_length=2, max_length=30, description="Team name (2 to 30 characters)")
+    members: list[str] = Field(..., min_length=1, description="List of team member names")
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        trimmed = v.strip()
+        if len(trimmed) < 2 or len(trimmed) > 30:
+            raise ValueError("Team name must be between 2 and 30 characters")
+        return trimmed
+
+    @field_validator("members")
+    @classmethod
+    def validate_members(cls, v: list[str]) -> list[str]:
+        cleaned = [m.strip() for m in v if isinstance(m, str) and m.strip()]
+        if len(cleaned) < config.MIN_MEMBERS:
+            raise ValueError(f"Team must have at least {config.MIN_MEMBERS} members")
+        for m in cleaned:
+            if len(m) < 1 or len(m) > 30:
+                raise ValueError("Member names must be between 1 and 30 characters")
+        return cleaned
+
+
+class TeamJoinRequest(BaseModel):
+    """Validated input model for joining an existing team via code."""
+
+    code: str = Field(..., min_length=1, max_length=20, description="Team code (e.g. PHX-4821)")
+
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, v: str) -> str:
+        trimmed = v.strip().upper()
+        if not trimmed:
+            raise ValueError("Team code cannot be blank")
+        return trimmed
+
 
 
 class CheckpointCreateRequest(BaseModel):
@@ -275,7 +317,111 @@ def delete_checkpoint(
     return {"status": "ok", "deleted_id": checkpoint_id}
 
 
+# --- Player Team & Device Endpoints ---
+
+
+@app.post("/api/register", status_code=201)
+def register_team(
+    response: Response,
+    body: TeamRegisterRequest,
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Register a new team, store hashed device token, and set HttpOnly device cookie."""
+    reg_open = db.get_setting(conn, "registration_open")
+    if reg_open != "1":
+        raise HTTPException(
+            status_code=403,
+            detail="Registration is currently closed by the organizer.",
+        )
+
+    try:
+        team_row, device_token = db.create_team(
+            conn,
+            name=body.name,
+            members=body.members,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+    auth.set_device_cookie(response, device_token)
+    return {
+        "id": team_row["id"],
+        "name": team_row["name"],
+        "code": team_row["code"],
+        "members": json.loads(team_row["members"]),
+    }
+
+
+@app.post("/api/join")
+def join_team(
+    request: Request,
+    response: Response,
+    body: TeamJoinRequest,
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Bind client device to an existing team via team code.
+
+    Rate limited per IP. Returns 409 if a device is already bound to the team.
+    """
+    client_ip = ratelimit.get_client_ip(request)
+    if ratelimit.is_rate_limited(
+        client_ip,
+        max_attempts=config.JOIN_ATTEMPTS_PER_MIN,
+        window_s=60.0,
+    ):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many join attempts. Please wait before retrying.",
+        )
+
+    code = game.normalize_team_code(body.code)
+    team = db.get_team_by_code(conn, code)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team code not found")
+
+    # If the team already has an active bound device
+    if team["device_hash"]:
+        raise HTTPException(
+            status_code=409,
+            detail="This team is already playing on another device.",
+        )
+
+    # Team has no bound device (e.g. newly created unbound or organizer released)
+    device_token = auth.generate_device_token()
+    device_hash = auth.hash_device_token(device_token)
+    db.bind_team_device(conn, team["id"], device_hash)
+
+    auth.set_device_cookie(response, device_token)
+    return {
+        "id": team["id"],
+        "name": team["name"],
+        "code": team["code"],
+        "members": json.loads(team["members"]),
+    }
+
+
+@app.get("/api/state")
+def get_game_state(
+    team: sqlite3.Row = Depends(auth.require_team_device),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Return active game state and team info for authenticated player device."""
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    members = json.loads(team["members"]) if team["members"] else []
+
+    return {
+        "game_state": game_state,
+        "name": team["name"],
+        "members": members,
+        "code": team["code"],
+        "device_status": "this phone is your team's device",
+    }
+
+
 # Mount static files (must come after specific API and /gods routes)
 if STATIC_DIR.is_dir():
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
 

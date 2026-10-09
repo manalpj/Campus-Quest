@@ -67,8 +67,9 @@ LOGIN_ATTEMPTS_PER_MIN: int = _get_int("LOGIN_ATTEMPTS_PER_MIN", 5)
 JOIN_ATTEMPTS_PER_MIN: int = _get_int("JOIN_ATTEMPTS_PER_MIN", 10)
 
 # 3. Campus Coordinates & Bounds
-CAMPUS_NAME: str = _get_str("CAMPUS_NAME", "DAVV Takshashila Campus")
+CAMPUS_NAME: str = _get_str("CAMPUS_NAME", "DAVV IET Campus")
 CAMPUS_CENTER_LAT: float = _get_float("CAMPUS_CENTER_LAT", 22.6928)
+
 CAMPUS_CENTER_LNG: float = _get_float("CAMPUS_CENTER_LNG", 75.8676)
 CAMPUS_BOUNDS_SW_LAT: float = _get_float("CAMPUS_BOUNDS_SW_LAT", 22.6850)
 CAMPUS_BOUNDS_SW_LNG: float = _get_float("CAMPUS_BOUNDS_SW_LNG", 75.8580)
