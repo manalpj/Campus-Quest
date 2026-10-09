@@ -16,16 +16,19 @@ load_dotenv()
 def _get_str(key: str, default: str) -> str:
     """Read a string environment variable with a default fallback."""
     val = os.getenv(key)
-    return val if val is not None and val != "" else default
+    if val is None:
+        return default
+    val = val.strip()
+    return val if val != "" else default
 
 
 def _get_int(key: str, default: int) -> int:
     """Read an integer environment variable with a default fallback."""
     val = os.getenv(key)
-    if val is None or val == "":
+    if val is None or val.strip() == "":
         return default
     try:
-        return int(val)
+        return int(val.strip())
     except ValueError as exc:
         raise ValueError(f"Invalid integer for configuration key {key}: {val!r}") from exc
 
@@ -33,10 +36,10 @@ def _get_int(key: str, default: int) -> int:
 def _get_float(key: str, default: float) -> float:
     """Read a float environment variable with a default fallback."""
     val = os.getenv(key)
-    if val is None or val == "":
+    if val is None or val.strip() == "":
         return default
     try:
-        return float(val)
+        return float(val.strip())
     except ValueError as exc:
         raise ValueError(f"Invalid float for configuration key {key}: {val!r}") from exc
 
