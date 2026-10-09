@@ -57,11 +57,12 @@ def test_api_config_returns_public_settings_only(client):
 
 
 def test_static_index_page_is_served(client):
-    """GET / serves the static index.html page."""
+    """GET / serves the static index.html page with Leaflet map elements."""
     response = client.get("/")
     assert response.status_code == 200
     assert "<title>Campus Quest</title>" in response.text
-    assert "Welcome to Campus Quest" in response.text
+    assert 'id="map"' in response.text
+    assert 'id="gps-status"' in response.text
 
 
 def test_static_path_traversal_is_blocked(client):
