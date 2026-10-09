@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Campus Quest - Organizer Admin Panel">
   <title>Admin Panel - Campus Quest</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body class="gods-body">
@@ -47,7 +48,7 @@
       </form>
     </section>
 
-    <!-- Authenticated Empty Admin Shell -->
+    <!-- Authenticated Admin Shell -->
     <section id="admin-shell-section" class="gods-card gods-shell-card" aria-labelledby="admin-shell-title" hidden>
       <header class="gods-shell-header">
         <div>
@@ -61,14 +62,116 @@
         </button>
       </header>
 
-      <div class="gods-shell-content">
-        <p class="gods-shell-notice">
-          Admin shell active. Checkpoint and game control modules will connect here.
-        </p>
-      </div>
+      <!-- Admin Tab Bar -->
+      <nav class="gods-tabs" role="tablist" aria-label="Admin panel navigation">
+        <button type="button" role="tab" id="tab-btn-checkpoints" class="gods-tab-btn active" aria-selected="true" aria-controls="tab-panel-checkpoints">
+          Checkpoints
+        </button>
+      </nav>
+
+      <!-- Checkpoints Tab Panel -->
+      <section id="tab-panel-checkpoints" role="tabpanel" aria-labelledby="tab-btn-checkpoints" class="gods-tab-panel">
+        <div class="gods-panel-top">
+          <div class="gods-counter-badge">
+            <span id="cp-counter-pill" class="counter-pill">0 of 5 needed</span>
+            <span class="counter-hint">Click map or use Add Checkpoint button</span>
+          </div>
+          <button type="button" id="btn-add-checkpoint" class="gods-btn gods-btn-primary gods-btn-add">
+            + Add Checkpoint
+          </button>
+        </div>
+
+        <div id="gods-global-alert" class="gods-alert" role="alert" hidden></div>
+
+        <div class="gods-workspace">
+          <!-- Leaflet Map Container -->
+          <div class="gods-map-wrapper">
+            <div id="gods-map" role="region" aria-label="Campus Checkpoint Map"></div>
+          </div>
+
+          <!-- Controls Column (Form & List) -->
+          <div class="gods-sidebar">
+            <!-- Checkpoint Add/Edit Form -->
+            <div id="cp-form-card" class="gods-form-card" hidden>
+              <div class="gods-form-header">
+                <h2 id="cp-form-title" class="gods-form-title">Add Checkpoint</h2>
+                <button type="button" id="cp-form-cancel-btn" class="gods-btn-text">Cancel</button>
+              </div>
+
+              <form id="cp-form" novalidate>
+                <input type="hidden" id="cp-id" value="">
+
+                <div class="form-group">
+                  <label for="cp-name">Name <span class="form-hint">(admin only, max 60 chars)</span></label>
+                  <input type="text" id="cp-name" maxlength="60" required placeholder="e.g. A-Block Mechanical Courtyard">
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-group">
+                    <label for="cp-lat">Latitude</label>
+                    <input type="number" id="cp-lat" step="any" required readonly>
+                  </div>
+                  <div class="form-group">
+                    <label for="cp-lng">Longitude</label>
+                    <input type="number" id="cp-lng" step="any" required readonly>
+                  </div>
+                </div>
+
+                <div class="form-grid-2">
+                  <div class="form-group">
+                    <label for="cp-radius">Radius (m) <span class="form-hint">(25 to 100)</span></label>
+                    <input type="number" id="cp-radius" min="25" max="100" value="30" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="cp-position">Position <span class="form-hint">(order #)</span></label>
+                    <input type="number" id="cp-position" min="1" placeholder="Auto">
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label for="cp-clue">Clue <span class="form-hint">(what teams see, max 300)</span></label>
+                  <textarea id="cp-clue" rows="3" maxlength="300" required placeholder="Clue or riddle leading to this spot..."></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label for="cp-hint">Easier Hint <span class="form-hint">(+3 min penalty, max 300)</span></label>
+                  <textarea id="cp-hint" rows="2" maxlength="300" required placeholder="Direct clue if team gets stuck..."></textarea>
+                </div>
+
+                <div class="form-group">
+                  <label for="cp-story">Story <span class="form-hint">(optional after unlock, max 300)</span></label>
+                  <textarea id="cp-story" rows="2" maxlength="300" placeholder="Optional historical fact about this spot..."></textarea>
+                </div>
+
+                <div id="cp-form-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+
+                <button type="submit" id="cp-form-save-btn" class="gods-btn gods-btn-primary">
+                  Save Checkpoint
+                </button>
+              </form>
+            </div>
+
+            <!-- Checkpoint List Card -->
+            <div class="gods-list-card">
+              <div class="gods-list-header">
+                <h2>Route Checkpoints</h2>
+                <button type="button" id="btn-add-checkpoint-list" class="gods-btn-sm gods-btn-primary">
+                  + Add New
+                </button>
+              </div>
+              <div id="checkpoints-list" class="gods-items-list" role="list"></div>
+              <div id="checkpoints-empty" class="gods-empty-notice">
+                No checkpoints yet. Click on the map to place your first checkpoint pin.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/gods.js"></script>
 </body>
 </html>
+

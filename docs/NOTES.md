@@ -79,3 +79,19 @@
 
 **Q2: Why use a signed, HttpOnly cookie with an explicit expiry timestamp rather than storing session tokens in localStorage?**  
 **A2:** `HttpOnly` cookies cannot be accessed or stolen by client-side JavaScript, protecting against XSS attacks, while `SameSite=Strict` blocks CSRF. Embedding an HMAC-SHA256 signature and timestamp directly in the cookie provides stateless verification against the server clock without trusting client state or requiring a database lookup on every admin request.
+
+## Task 6: Admin checkpoint management on a map
+
+### 5-Line Interview Summary
+- Added interactive Leaflet map checkpoint management to `/gods` behind `require_admin`, enabling organizers to visually add, edit, move, reorder, and delete route checkpoints.
+- Created `game.py` for pure domain logic (coordinate bounds verification and route sequence positioning) isolated from HTTP routes and SQL queries.
+- Implemented parameterised CRUD operations in `db.py` under `BEGIN IMMEDIATE` transactions to prevent race conditions and safely compact or shift route positions without duplicate gaps.
+- Enforced strict server-side Pydantic validation across coordinates, campus bounds, radius ranges (25–100 m), and string lengths (clue/hint/story max 300, name max 60).
+- Delivered a responsive, mobile-first admin interface with real-time radius circles, draggable pins, a "x of N needed" counter, and comprehensive unit tests covering validation and reordering.
+
+### Interview Questions & Answers
+**Q1: Why did you implement position shifting and gap compaction inside `BEGIN IMMEDIATE` in `db.py` instead of letting the client send updated positions for every checkpoint?**  
+**A1:** Relying on the client to calculate and update every checkpoint's position introduces race conditions and risks duplicate or fragmented positions if two admins edit simultaneously or if a network request fails halfway through. By executing the shift or compaction inside a single atomic `BEGIN IMMEDIATE` transaction on the server, we guarantee that the route sequence remains dense, contiguous (1..N), and free of collisions regardless of concurrent actions or client state.
+
+**Q2: Why do we validate coordinates against campus bounding boxes on the server using Pydantic when the Leaflet map already restricts clicks to campus bounds?**  
+**A2:** Client-side UI constraints are purely advisory for user experience and can be easily bypassed by direct API calls, DevTools, or forged HTTP requests. Enforcing campus bounding box validation on the server via Pydantic model validators guarantees that invalid, out-of-bounds coordinates can never be persisted in SQLite, ensuring the game boundary rule is non-negotiable.

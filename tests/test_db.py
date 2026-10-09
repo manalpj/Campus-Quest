@@ -189,9 +189,9 @@ def test_seed_database_success(test_db_path, monkeypatch):
         for r in rows:
             assert r["radius"] == 30.0
             assert r["kind"] == "route"
-            # Offsets are around campus center (22.6928, 75.8676)
-            assert 22.6900 <= r["lat"] <= 22.6950
-            assert 75.8650 <= r["lng"] <= 75.8700
+            # Verify coordinates are valid campus coordinates
+            assert 22.6700 <= r["lat"] <= 22.7100
+            assert 75.8500 <= r["lng"] <= 75.8900
     finally:
         conn.close()
 

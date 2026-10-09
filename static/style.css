@@ -184,7 +184,7 @@ body {
 }
 
 .gods-container {
-  max-width: 480px;
+  max-width: 440px;
   margin: 0 auto;
   padding: var(--space-24) var(--space-16);
   display: flex;
@@ -192,6 +192,14 @@ body {
   justify-content: center;
   min-height: 100vh;
   min-height: 100dvh;
+  transition: max-width 0.2s ease;
+}
+
+.gods-container:has(#admin-shell-section:not([hidden])),
+.gods-container.gods-container-shell {
+  max-width: 1280px;
+  justify-content: flex-start;
+  padding: var(--space-24);
 }
 
 .gods-card {
@@ -220,6 +228,8 @@ body {
   flex-direction: column;
   gap: var(--space-4);
   margin-bottom: var(--space-16);
+  min-width: 0;
+  width: 100%;
 }
 
 .form-group label {
@@ -228,18 +238,39 @@ body {
   color: var(--text);
 }
 
-.form-group input {
-  min-height: 44px;
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: var(--space-8) var(--space-12);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  font-family: inherit;
-  font-size: 1rem;
+  font-family: var(--font-stack);
+  font-size: 0.9375rem;
   color: var(--text);
   background-color: var(--surface);
+  line-height: 1.4;
 }
 
-.form-group input:focus-visible {
+.form-group input {
+  min-height: 44px;
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #8c959f;
+  font-family: var(--font-stack);
+  font-size: 0.875rem;
+}
+
+.form-group input:focus-visible,
+.form-group textarea:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
   border-color: var(--primary);
@@ -310,7 +341,7 @@ body {
 }
 
 .gods-shell-card {
-  max-width: 640px;
+  max-width: 100%;
   width: 100%;
   margin: 0 auto;
 }
@@ -325,12 +356,303 @@ body {
   margin-bottom: var(--space-16);
 }
 
-.gods-shell-notice {
+/* Tabs */
+.gods-tabs {
+  display: flex;
+  gap: var(--space-8);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-16);
+}
+
+.gods-tab-btn {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-stack);
   font-size: 0.9375rem;
+  font-weight: 600;
+  padding: var(--space-8) var(--space-16);
+  min-height: 44px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.gods-tab-btn:hover {
+  color: var(--text);
+}
+
+.gods-tab-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.gods-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* Panel Top & Counter */
+.gods-panel-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  margin-bottom: var(--space-16);
+  flex-wrap: wrap;
+}
+
+.gods-btn-add {
+  width: auto;
+  white-space: nowrap;
+}
+
+.gods-counter-badge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  flex-wrap: wrap;
+}
+
+.counter-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  background-color: var(--attention-bg);
+  color: var(--attention);
+  border: 1px solid #f9e2ae;
+}
+
+.counter-pill.counter-satisfied {
+  background-color: #e6f4ea;
+  color: var(--success);
+  border-color: #ceead6;
+}
+
+.counter-hint {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+/* Workspace layout */
+.gods-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+@media (min-width: 768px) {
+  .gods-workspace {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    align-items: start;
+    gap: var(--space-20);
+  }
+}
+
+.gods-map-wrapper {
+  width: 100%;
+  height: 560px;
+  min-height: 440px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+  background-color: var(--bg);
+}
+
+#gods-map {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+
+.gods-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.gods-form-card,
+.gods-list-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-16);
+}
+
+.gods-form-header,
+.gods-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-12);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-8);
+}
+
+.gods-form-title,
+.gods-list-header h2 {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.gods-btn-text {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  min-height: 44px;
+  min-width: 44px;
+  padding: var(--space-4) var(--space-8);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.gods-btn-text:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-8);
+  width: 100%;
+}
+
+.form-grid-2 > .form-group {
+  margin-bottom: var(--space-12);
+  min-width: 0;
+  width: 100%;
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* Checkpoint List Items */
+.gods-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.gods-cp-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6, 6px);
+  padding: var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  transition: border-color 0.15s ease;
+}
+
+.gods-cp-item:hover {
+  border-color: #b0c4de;
+}
+
+.gods-cp-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.gods-cp-badge {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.gods-cp-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  word-break: break-word;
+}
+
+.gods-cp-meta {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.gods-cp-clue {
+  font-size: 0.875rem;
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.gods-cp-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.gods-btn-sm {
+  min-height: 44px;
+  min-width: 44px;
+  padding: var(--space-6, 6px) var(--space-12);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease;
+}
+
+.gods-btn-sm:hover:not(:disabled) {
+  background-color: var(--bg);
+}
+
+.gods-btn-sm:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.gods-btn-sm:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.gods-btn-danger {
+  color: var(--error);
+  border-color: #fad2cf;
+  background-color: #fff9f8;
+}
+
+.gods-btn-danger:hover:not(:disabled) {
+  background-color: #fce8e6;
+}
+
+.gods-empty-notice {
+  font-size: 0.875rem;
   color: var(--text-secondary);
   background-color: var(--bg);
   padding: var(--space-16);
   border-radius: var(--radius);
   border: 1px dashed var(--border);
+  text-align: center;
 }
 

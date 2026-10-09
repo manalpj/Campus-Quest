@@ -159,3 +159,139 @@ def get_db() -> Generator[sqlite3.Connection, None, None]:
         yield conn
     finally:
         conn.close()
+
+
+# --- Checkpoint Management Operations ---
+
+
+def get_checkpoints(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Fetch all checkpoints ordered by their sequential route position."""
+    return conn.execute(
+        "SELECT id, name, lat, lng, radius, position, clue, hint, story, kind "
+        "FROM checkpoints ORDER BY position ASC, id ASC"
+    ).fetchall()
+
+
+def get_checkpoint_by_id(conn: sqlite3.Connection, checkpoint_id: int) -> Optional[sqlite3.Row]:
+    """Fetch a single checkpoint by primary key ID."""
+    return conn.execute(
+        "SELECT id, name, lat, lng, radius, position, clue, hint, story, kind "
+        "FROM checkpoints WHERE id = ?",
+        (checkpoint_id,),
+    ).fetchone()
+
+
+def create_checkpoint(
+    conn: sqlite3.Connection,
+    name: str,
+    lat: float,
+    lng: float,
+    radius: float,
+    clue: str,
+    hint: str,
+    story: Optional[str] = None,
+    position: Optional[int] = None,
+) -> sqlite3.Row:
+    """Insert a new checkpoint, shifting positions safely to prevent duplicates.
+
+    Runs inside BEGIN IMMEDIATE transaction to prevent concurrent sequence collisions.
+    """
+    import game
+
+    with write_tx(conn):
+        count = conn.execute("SELECT COUNT(*) FROM checkpoints").fetchone()[0]
+        pos = game.compute_target_position(position, count)
+
+        # Shift existing checkpoints at >= pos up by 1 to make room
+        conn.execute(
+            "UPDATE checkpoints SET position = position + 1 WHERE position >= ?",
+            (pos,),
+        )
+
+        cursor = conn.execute(
+            """
+            INSERT INTO checkpoints (name, lat, lng, radius, position, clue, hint, story, kind)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'route')
+            """,
+            (name, lat, lng, radius, pos, clue, hint, story or None),
+        )
+        new_id = cursor.lastrowid
+        row = get_checkpoint_by_id(conn, new_id)
+        assert row is not None
+        return row
+
+
+def update_checkpoint(
+    conn: sqlite3.Connection,
+    checkpoint_id: int,
+    name: str,
+    lat: float,
+    lng: float,
+    radius: float,
+    clue: str,
+    hint: str,
+    story: Optional[str] = None,
+    position: Optional[int] = None,
+) -> Optional[sqlite3.Row]:
+    """Update checkpoint details and adjust sequence positions without duplicate gaps.
+
+    Runs inside BEGIN IMMEDIATE transaction.
+    """
+    with write_tx(conn):
+        existing = get_checkpoint_by_id(conn, checkpoint_id)
+        if not existing:
+            return None
+
+        old_pos = existing["position"]
+        count = conn.execute("SELECT COUNT(*) FROM checkpoints").fetchone()[0]
+
+        if position is not None and position != old_pos:
+            # Clamp target position to [1, count]
+            new_pos = max(1, min(position, count))
+            if new_pos < old_pos:
+                # Moving up towards start: shift items in [new_pos, old_pos - 1] down (+1)
+                conn.execute(
+                    "UPDATE checkpoints SET position = position + 1 "
+                    "WHERE position >= ? AND position < ? AND id != ?",
+                    (new_pos, old_pos, checkpoint_id),
+                )
+            elif new_pos > old_pos:
+                # Moving down towards end: shift items in [old_pos + 1, new_pos] up (-1)
+                conn.execute(
+                    "UPDATE checkpoints SET position = position - 1 "
+                    "WHERE position > ? AND position <= ? AND id != ?",
+                    (old_pos, new_pos, checkpoint_id),
+                )
+            final_pos = new_pos
+        else:
+            final_pos = old_pos
+
+        conn.execute(
+            """
+            UPDATE checkpoints
+            SET name = ?, lat = ?, lng = ?, radius = ?, position = ?, clue = ?, hint = ?, story = ?
+            WHERE id = ?
+            """,
+            (name, lat, lng, radius, final_pos, clue, hint, story or None, checkpoint_id),
+        )
+        return get_checkpoint_by_id(conn, checkpoint_id)
+
+
+def delete_checkpoint(conn: sqlite3.Connection, checkpoint_id: int) -> bool:
+    """Delete a checkpoint and shift trailing checkpoints down to close order gaps.
+
+    Runs inside BEGIN IMMEDIATE transaction.
+    """
+    with write_tx(conn):
+        existing = get_checkpoint_by_id(conn, checkpoint_id)
+        if not existing:
+            return False
+
+        del_pos = existing["position"]
+        conn.execute("DELETE FROM checkpoints WHERE id = ?", (checkpoint_id,))
+        # Compact remaining positions so order sequence remains contiguous
+        conn.execute(
+            "UPDATE checkpoints SET position = position - 1 WHERE position > ?",
+            (del_pos,),
+        )
+        return True

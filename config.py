@@ -172,4 +172,5 @@ def get_public_config() -> Dict[str, Any]:
         "tile_attribution": TILE_ATTRIBUTION,
         "ping_interval_ms": PING_INTERVAL_MS,
         "poll_interval_ms": POLL_INTERVAL_MS,
+        "min_checkpoints": MIN_CHECKPOINTS,
     }
