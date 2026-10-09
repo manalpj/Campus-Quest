@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Campus Quest - DAVV geofenced clue hunt">
+  <title>Campus Quest</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <div class="header-content">
+      <h1 id="app-title">Campus Quest</h1>
+      <span class="status-chip online" id="server-status">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+          <circle cx="6" cy="6" r="5" fill="#188038"/>
+        </svg>
+        Ready
+      </span>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="card" aria-labelledby="welcome-heading">
+      <h2 id="welcome-heading" class="card-title">Welcome to Campus Quest</h2>
+      <p class="card-body">
+        The DAVV campus geofenced clue hunt server is running and serving static files.
+      </p>
+      <div style="display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-8);">
+        <a href="/healthz" id="check-health-link" class="btn btn-secondary">
+          Check Health (/healthz)
+        </a>
+        <a href="/api/config" id="check-config-link" class="btn btn-primary">
+          View Public Config (/api/config)
+        </a>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="status-heading">
+      <h2 id="status-heading" class="card-title">Task 1 Scaffold</h2>
+      <p class="card-body">
+        Static asset delivery, configuration management, and server endpoints are initialized.
+      </p>
+    </section>
+  </main>
+
+  <footer>
+    <p>Campus Quest &bull; GDGoC DAVV</p>
+  </footer>
+</body>
+</html>

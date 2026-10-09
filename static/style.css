@@ -1,0 +1,163 @@
+/* Campus Quest base stylesheet */
+/* Follows docs/DESIGN_BRIEF.md: calm, specific, high-contrast, no glow orbs or heavy shadows */
+
+:root {
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --border: #d9d4c8;
+  --text: #1f2328;
+  --text-secondary: #4a5058;
+  --primary: #1a73e8;
+  --primary-hover: #1557b0;
+  --success: #188038;
+  --error: #d93025;
+  --attention: #b06000;
+  --attention-bg: #fef7e0;
+
+  --radius: 6px;
+  --font-stack: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  --space-4: 4px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+  --space-24: 24px;
+  --space-32: 32px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-stack);
+  font-size: 16px;
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.container {
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  flex: 1;
+}
+
+header {
+  border-bottom: 1px solid var(--border);
+  background-color: var(--surface);
+  padding: var(--space-12) var(--space-16);
+}
+
+.header-content {
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+h1 {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.card-body {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  font-size: 14px;
+  font-weight: 500;
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background-color: var(--surface);
+  width: fit-content;
+}
+
+.status-chip.online {
+  border-color: #ceead6;
+  background-color: #e6f4ea;
+  color: var(--success);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius);
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+.btn-primary:active {
+  background-color: var(--primary-hover);
+}
+
+.btn-secondary {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.btn-secondary:active {
+  background-color: var(--bg);
+}
+
+footer {
+  border-top: 1px solid var(--border);
+  padding: var(--space-16);
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
