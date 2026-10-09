@@ -171,3 +171,166 @@ body {
   color: var(--text) !important;
   background-color: var(--surface) !important;
 }
+
+/* ==========================================================================
+   Admin Panel (/gods) Interface Styles
+   ========================================================================== */
+
+.gods-body {
+  overflow-y: auto;
+  background-color: var(--bg);
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.gods-container {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-24) var(--space-16);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.gods-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-24);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.gods-card-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: var(--space-4);
+}
+
+.gods-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-16);
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-16);
+}
+
+.form-group label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.form-group input {
+  min-height: 44px;
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background-color: var(--surface);
+}
+
+.form-group input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  border-color: var(--primary);
+}
+
+.gods-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: var(--space-8) var(--space-16);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.gods-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.gods-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.gods-btn-primary {
+  width: 100%;
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+.gods-btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+.gods-btn-secondary {
+  background-color: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.gods-btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg);
+}
+
+.gods-alert {
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  margin-bottom: var(--space-16);
+  border: 1px solid transparent;
+}
+
+.gods-alert-error {
+  background-color: #fce8e6;
+  border-color: #fad2cf;
+  color: var(--error);
+}
+
+.gods-alert-success {
+  background-color: #e6f4ea;
+  border-color: #ceead6;
+  color: var(--success);
+}
+
+.gods-shell-card {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.gods-shell-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-16);
+  padding-bottom: var(--space-16);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-16);
+}
+
+.gods-shell-notice {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  background-color: var(--bg);
+  padding: var(--space-16);
+  border-radius: var(--radius);
+  border: 1px dashed var(--border);
+}
+

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Campus Quest - Organizer Admin Panel">
+  <title>Admin Panel - Campus Quest</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="gods-body">
+  <main class="gods-container">
+    <!-- Unauthenticated Login View -->
+    <section id="login-section" class="gods-card" aria-labelledby="login-title">
+      <h1 id="login-title" class="gods-card-title">Organizer Login</h1>
+      <p class="gods-subtitle">Sign in to manage Campus Quest</p>
+
+      <div id="login-alert" class="gods-alert" role="alert" hidden></div>
+
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label for="admin-username-input">User ID</label>
+          <input
+            id="admin-username-input"
+            type="text"
+            name="username"
+            required
+            autocomplete="username"
+            placeholder="Enter organizer ID"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="admin-password-input">Password</label>
+          <input
+            id="admin-password-input"
+            type="password"
+            name="password"
+            required
+            autocomplete="current-password"
+            placeholder="Enter passphrase"
+          />
+        </div>
+
+        <button type="submit" id="login-submit-btn" class="gods-btn gods-btn-primary">
+          Log In
+        </button>
+      </form>
+    </section>
+
+    <!-- Authenticated Empty Admin Shell -->
+    <section id="admin-shell-section" class="gods-card gods-shell-card" aria-labelledby="admin-shell-title" hidden>
+      <header class="gods-shell-header">
+        <div>
+          <h1 id="admin-shell-title" class="gods-card-title">Campus Quest Admin</h1>
+          <p class="gods-subtitle">
+            Logged in as <strong id="current-admin-name">admin</strong>
+          </p>
+        </div>
+        <button type="button" id="logout-btn" class="gods-btn gods-btn-secondary">
+          Log Out
+        </button>
+      </header>
+
+      <div class="gods-shell-content">
+        <p class="gods-shell-notice">
+          Admin shell active. Checkpoint and game control modules will connect here.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script src="/gods.js"></script>
+</body>
+</html>

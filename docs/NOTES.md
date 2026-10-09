@@ -63,3 +63,19 @@
 
 **Q2: Why must `PRAGMA foreign_keys = ON` be executed explicitly on every newly opened connection?**  
 **A2:** In SQLite, foreign key constraint enforcement is disabled by default for backwards compatibility and is a per-connection runtime setting rather than a persistent schema property. Executing `PRAGMA foreign_keys = ON` on every connection ensures relational constraints (such as preventing progress entries for non-existent teams) are strictly validated on every insert and delete.
+
+## Task 5: Admin login at /gods
+
+### 5-Line Interview Summary
+- Built constant-time credential verification in `auth.py` with `hmac.compare_digest` to prevent timing attacks against organizer logins.
+- Implemented tamper-resistant session management via HMAC-SHA256 signed `quest_admin` cookies containing an 8-hour expiry timestamp and username.
+- Created an in-memory sliding-window rate limiter in `ratelimit.py` to throttle brute-force login attempts per client IP after `LOGIN_ATTEMPTS_PER_MIN`.
+- Protected administrative endpoints (`/api/gods/me`, `/api/gods/logout`) with a reusable `require_admin` dependency and verified all future `/api/gods/` routes require it.
+- Developed the unlinked `/gods` admin interface with vanilla JS and design tokens, serving a login form that transitions into an empty authenticated admin shell.
+
+### Interview Questions & Answers
+**Q1: Why do we compare credentials using `hmac.compare_digest` instead of standard `==` string equality?**  
+**A1:** Standard string comparison (`==`) evaluates characters sequentially and short-circuits at the first mismatch, leaking timing variations that allow attackers to deduce characters one by one. `hmac.compare_digest` executes in constant time regardless of where differences occur, eliminating side-channel timing attacks.
+
+**Q2: Why use a signed, HttpOnly cookie with an explicit expiry timestamp rather than storing session tokens in localStorage?**  
+**A2:** `HttpOnly` cookies cannot be accessed or stolen by client-side JavaScript, protecting against XSS attacks, while `SameSite=Strict` blocks CSRF. Embedding an HMAC-SHA256 signature and timestamp directly in the cookie provides stateless verification against the server clock without trusting client state or requiring a database lookup on every admin request.

@@ -7,12 +7,15 @@ static file delivery for the player and administrative interfaces.
 from contextlib import asynccontextmanager
 import os
 from pathlib import Path
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
+import auth
 import config
 import db
+import ratelimit
 
 
 @asynccontextmanager
@@ -30,9 +33,27 @@ app = FastAPI(
 )
 
 
+class AdminLoginRequest(BaseModel):
+    """Validated input model for administrator login."""
+
+    username: str = Field(..., min_length=1, max_length=64, description="Administrator username")
+    password: str = Field(..., min_length=1, max_length=256, description="Administrator passphrase")
+
+
 @app.middleware("http")
 async def security_and_header_middleware(request: Request, call_next):
-    """Enforce security headers compatible with OpenStreetMap tiles."""
+    """Enforce payload size boundaries and security headers."""
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > config.MAX_BODY_BYTES:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request payload exceeds size limit"},
+                )
+        except ValueError:
+            pass
+
     response = await call_next(request)
     # Ensure Referrer-Policy is never 'no-referrer' so OSM tiles load correctly
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
@@ -44,6 +65,12 @@ async def security_and_header_middleware(request: Request, call_next):
 @app.exception_handler(Exception)
 def generic_exception_handler(request: Request, exc: Exception):
     """Prevent internal server details, SQL, or stack traces from leaking."""
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail},
+            headers=exc.headers,
+        )
     return JSONResponse(
         status_code=500,
         content={"detail": "Internal server error"},
@@ -66,7 +93,62 @@ def get_public_config():
     return config.get_public_config()
 
 
-# Mount static files (must come after specific API routes)
 STATIC_DIR = Path(__file__).parent / "static"
+
+
+@app.get("/gods")
+def gods_page():
+    """Serve administrative control panel HTML without linking from player UI."""
+    gods_file = STATIC_DIR / "gods.html"
+    if not gods_file.is_file():
+        raise HTTPException(status_code=404, detail="Admin page not found")
+    return FileResponse(gods_file)
+
+
+# --- Administrative API Endpoints ---
+
+
+@app.post("/api/gods/login")
+def gods_login(request: Request, response: Response, body: AdminLoginRequest):
+    """Authenticate administrator, rate-limit attempts, and set signed session cookie.
+
+    Does not log or return the password under any circumstance.
+    """
+    client_ip = ratelimit.get_client_ip(request)
+    if ratelimit.is_rate_limited(
+        client_ip,
+        max_attempts=config.LOGIN_ATTEMPTS_PER_MIN,
+        window_s=60.0,
+    ):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many login attempts. Please wait before retrying.",
+        )
+
+    if not auth.verify_admin_credentials(body.username, body.password):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid username or password",
+        )
+
+    auth.set_admin_cookie(response, body.username)
+    return {"status": "ok", "username": body.username}
+
+
+@app.post("/api/gods/logout")
+def gods_logout(response: Response, admin_user: str = Depends(auth.require_admin)):
+    """Terminate administrator session by clearing the quest_admin cookie."""
+    auth.clear_admin_cookie(response)
+    return {"status": "ok"}
+
+
+@app.get("/api/gods/me")
+def gods_me(admin_user: str = Depends(auth.require_admin)):
+    """Return the username of the active authenticated administrator."""
+    return {"username": admin_user}
+
+
+# Mount static files (must come after specific API and /gods routes)
 if STATIC_DIR.is_dir():
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
