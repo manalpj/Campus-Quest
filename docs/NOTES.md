@@ -47,3 +47,19 @@
 
 **Q2: What happens if `FORWARDED_ALLOW_IPS=*` is omitted on Railway when rate limits are active?**  
 **A2:** Railway routes traffic through internal reverse proxy load balancers. Without trusting forwarded proxy headers, Uvicorn reports Railway's proxy IP as the client address for every request. Any per-IP rate limiter (such as brute-force protection on `/api/join` or `/gods`) would group all players into a single IP bucket, prematurely throttling the entire campus event.
+
+## Task 4: SQLite schema, connection handling and seed script
+
+### 5-Line Interview Summary
+- Implemented `db.py` to isolate all SQLite schema DDL and connection management away from API routes and game rules.
+- Created the core relational tables (`settings`, `checkpoints`, `teams`, `progress`, `hint_uses`, `events`) and seeded initial game settings with `INSERT OR IGNORE`.
+- Configured production PRAGMAs (`WAL` journal mode, 5-second `busy_timeout`, and `foreign_keys=ON`) with a per-request FastAPI dependency.
+- Engineered a `write_tx()` context manager using `BEGIN IMMEDIATE` and autocommit mode (`isolation_level=None`) to prevent check-then-insert race conditions.
+- Built a guarded `seed.py` CLI script creating 6 realistic DAVV campus checkpoints for local development while strictly refusing to execute when `ENV=production`.
+
+### Interview Questions & Answers
+**Q1: Why do we use `BEGIN IMMEDIATE` inside `write_tx()` instead of SQLite's default transaction behavior?**  
+**A1:** Python's default SQLite transactions are deferred, starting with a shared read lock and only attempting to upgrade to a write lock on the first write statement. When multiple clients concurrently read then write (e.g. check-then-insert), both hold read locks and deadlock trying to upgrade simultaneously. `BEGIN IMMEDIATE` acquires SQLite's write lock upfront, queuing concurrent writers gracefully up to `busy_timeout` (5000 ms) and guaranteeing atomic check-then-write transactions.
+
+**Q2: Why must `PRAGMA foreign_keys = ON` be executed explicitly on every newly opened connection?**  
+**A2:** In SQLite, foreign key constraint enforcement is disabled by default for backwards compatibility and is a per-connection runtime setting rather than a persistent schema property. Executing `PRAGMA foreign_keys = ON` on every connection ensures relational constraints (such as preventing progress entries for non-existent teams) are strictly validated on every insert and delete.
