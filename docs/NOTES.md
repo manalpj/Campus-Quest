@@ -143,3 +143,19 @@
 
 **Q2: Why do we enforce the checkpoint locking rule once the game is running, while still allowing clue, hint, and story text edits?**  
 **A2:** Changing coordinates, radii, positions, or deleting checkpoints during a live game would corrupt players' route order, create race conditions with active geofence evaluations, and create unfair advantages. However, organizers may notice a typo or want to clarify confusing clue or hint wording while teams are hunting. Allowing text updates while locking physical coordinates and sequence order protects game integrity without locking out organizers from clarifying clues.
+
+## Task 10: Location ping, accuracy gating, streak progression and unlock
+
+### 5-Line Interview Summary
+- Implemented `POST /api/ping` validating coordinates and accuracy via Pydantic, guarded by `require_team_device` cookie authentication.
+- Rejected pings with HTTP 409 if the game is not running or the launch countdown has not elapsed, ensuring nobody unlocks checkpoints prematurely.
+- Gated position fixes against `ACCURACY_LIMIT_M` (30 m), returning `status: weak_gps` without modifying streaks to prevent inaccurate drift from falsifying player location.
+- Tracked consecutive `inside_streak` using Haversine distance and required 2 consecutive inside fixes before atomically writing to `progress` under `write_tx(BEGIN IMMEDIATE)`.
+- Strictly withheld physical coordinates, radii, and distance numbers in all responses, returning only progress counts, unlocked story text, and the subsequent clue.
+
+### Interview Questions & Answers
+**Q1: Why do we ignore fixes with accuracy worse than 30 metres instead of using them or penalizing the team?**  
+**A1:** Checkpoint geofence radii are typically 25 to 40 metres wide. A GPS reading with an estimated accuracy circle of 50+ metres has an error margin wider than the target zone itself, making it impossible to reliably know if the player is actually within the perimeter. Ignoring noisy fixes protects the team from having an active streak reset by momentary satellite multipath error while simultaneously preventing accidental false unlocks from outside the zone.
+
+**Q2: How does the server prevent two simultaneous pings from creating duplicate unlock records or skipping a checkpoint?**  
+**A2:** The unlock operation runs inside `write_tx()` using SQLite's `BEGIN IMMEDIATE`, which acquires the exclusive database write lock upfront. Inside the transaction, it checks whether a row already exists in `progress` for `(team_id, checkpoint_id)` before inserting, backed by SQLite's compound primary key constraint. Any concurrent ping is queued by `busy_timeout` and either encounters the existing row or sees an updated streak, guaranteeing that exactly one progress entry is recorded and sequence integrity is preserved.

@@ -85,6 +85,16 @@ class TeamJoinRequest(BaseModel):
         return trimmed
 
 
+class PingRequest(BaseModel):
+    """Validated input model for player location pings."""
+
+    lat: float = Field(..., ge=-90.0, le=90.0, description="Latitude coordinate (-90 to 90)")
+    lng: float = Field(..., ge=-180.0, le=180.0, description="Longitude coordinate (-180 to 180)")
+    accuracy: float = Field(..., ge=0.0, le=10000.0, description="GPS accuracy in metres (0 to 10000)")
+    ts: Optional[float] = Field(default=None, description="Optional client timestamp")
+
+
+
 
 class CheckpointCreateRequest(BaseModel):
     """Validated input model for creating a route checkpoint."""
@@ -568,8 +578,119 @@ def get_game_state(
     }
 
 
+@app.post("/api/ping")
+def ping_location(
+    body: PingRequest,
+    team: sqlite3.Row = Depends(auth.require_team_device),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Process a player device GPS location ping.
+
+    Validates coordinates, rejects if game is not running or countdown has not finished,
+    filters weak accuracy fixes, calculates geofence distance to next checkpoint,
+    manages the 2-in-a-row inside streak, and atomically unlocks checkpoints.
+    Never exposes coordinates, radius, or distance in responses.
+    """
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    if game_state != "running":
+        raise HTTPException(
+            status_code=409,
+            detail="Game is not running",
+        )
+
+    started_at_str = db.get_setting(conn, "started_at")
+    if not started_at_str:
+        raise HTTPException(
+            status_code=409,
+            detail="Game has not started yet",
+        )
+
+    try:
+        started_at = float(started_at_str)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="Invalid started_at setting")
+
+    now = time.time()
+    if now < started_at:
+        raise HTTPException(
+            status_code=409,
+            detail="Game countdown has not finished yet",
+        )
+
+    # If team already completed all checkpoints
+    if team["finished_at"]:
+        _, total = db.get_team_progress_counts(conn, team["id"])
+        return {
+            "status": "completed",
+            "cleared": total,
+            "total": total,
+        }
+
+    # Accuracy check: ignore fix if worse than configured threshold
+    if not game.accuracy_ok(body.accuracy, config.ACCURACY_LIMIT_M):
+        db.touch_team_last_seen(conn, team["id"], now)
+        return {"status": "weak_gps"}
+
+    # Find next checkpoint (lowest position not in progress)
+    next_cp = db.get_team_next_checkpoint(conn, team["id"])
+    if not next_cp:
+        _, total = db.get_team_progress_counts(conn, team["id"])
+        return {
+            "status": "completed",
+            "cleared": total,
+            "total": total,
+        }
+
+    # Haversine distance and inside test
+    dist_m = game.haversine_m(body.lat, body.lng, next_cp["lat"], next_cp["lng"])
+    inside = game.is_inside(dist_m, next_cp["radius"])
+
+    # Consecutive inside streak computation
+    current_streak = team["inside_streak"]
+    new_streak = game.next_streak(current_streak, inside)
+
+    # Check unlock condition
+    if game.should_unlock(new_streak, config.STREAK_REQUIRED):
+        elapsed_s = max(0, int(now - started_at))
+        cleared_before, total = db.get_team_progress_counts(conn, team["id"])
+        is_last = (cleared_before + 1 >= total)
+
+        db.unlock_checkpoint(
+            conn=conn,
+            team_id=team["id"],
+            checkpoint_id=next_cp["id"],
+            unlocked_at=now,
+            elapsed_s=elapsed_s,
+            is_last=is_last,
+            lat=body.lat,
+            lng=body.lng,
+        )
+
+        subsequent_cp = db.get_team_next_checkpoint(conn, team["id"])
+        cleared_after, _ = db.get_team_progress_counts(conn, team["id"])
+
+        return {
+            "status": "unlocked",
+            "story": next_cp["story"],
+            "next_clue": subsequent_cp["clue"] if subsequent_cp else None,
+            "cleared": cleared_after,
+            "total": total,
+        }
+    else:
+        db.update_team_fix_and_streak(
+            conn=conn,
+            team_id=team["id"],
+            lat=body.lat,
+            lng=body.lng,
+            ts=now,
+            streak=new_streak,
+        )
+        return {"status": "searching"}
+
+
 # Mount static files (must come after specific API and /gods routes)
 if STATIC_DIR.is_dir():
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
 
 

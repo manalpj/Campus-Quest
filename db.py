@@ -437,3 +437,148 @@ def bind_team_device(conn: sqlite3.Connection, team_id: int, device_hash: str) -
             (now, team_id),
         )
 
+
+# --- Checkpoint Progress & Ping Operations ---
+
+
+def get_team_next_checkpoint(conn: sqlite3.Connection, team_id: int) -> Optional[sqlite3.Row]:
+    """Retrieve the next uncompleted checkpoint for a team.
+
+    Finds the checkpoint with the lowest route sequence position that has
+    no matching record in the progress table for this team.
+    """
+    return conn.execute(
+        """
+        SELECT c.*
+        FROM checkpoints c
+        WHERE c.id NOT IN (
+            SELECT p.checkpoint_id
+            FROM progress p
+            WHERE p.team_id = ?
+        )
+        ORDER BY c.position ASC, c.id ASC
+        LIMIT 1
+        """,
+        (team_id,),
+    ).fetchone()
+
+
+def get_team_progress_counts(conn: sqlite3.Connection, team_id: int) -> tuple[int, int]:
+    """Return (cleared_count, total_count) for the team."""
+    cleared_row = conn.execute(
+        "SELECT COUNT(*) FROM progress WHERE team_id = ?",
+        (team_id,),
+    ).fetchone()
+    cleared = cleared_row[0] if cleared_row else 0
+
+    total_row = conn.execute(
+        "SELECT COUNT(*) FROM checkpoints",
+    ).fetchone()
+    total = total_row[0] if total_row else 0
+    return cleared, total
+
+
+def update_team_fix_and_streak(
+    conn: sqlite3.Connection,
+    team_id: int,
+    lat: float,
+    lng: float,
+    ts: float,
+    streak: int,
+) -> None:
+    """Update last fix location, timestamp, last_seen, and inside streak for a team.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    """
+    with write_tx(conn):
+        conn.execute(
+            """
+            UPDATE teams
+            SET last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?, last_seen = ?, inside_streak = ?
+            WHERE id = ?
+            """,
+            (lat, lng, ts, ts, streak, team_id),
+        )
+
+
+def touch_team_last_seen(conn: sqlite3.Connection, team_id: int, now: float) -> None:
+    """Update last_seen timestamp for a team without altering fix coordinates or streak.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    """
+    with write_tx(conn):
+        conn.execute(
+            "UPDATE teams SET last_seen = ? WHERE id = ?",
+            (now, team_id),
+        )
+
+
+def unlock_checkpoint(
+    conn: sqlite3.Connection,
+    team_id: int,
+    checkpoint_id: int,
+    unlocked_at: float,
+    elapsed_s: int,
+    is_last: bool,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+) -> bool:
+    """Record an unlocked checkpoint in progress, reset streak, and update team state.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    Guaranteed atomic and idempotent: checks for existing progress row to prevent
+    duplicate progress records from concurrent requests.
+    Returns True if successfully unlocked, or False if already unlocked.
+    """
+    with write_tx(conn):
+        existing = conn.execute(
+            "SELECT 1 FROM progress WHERE team_id = ? AND checkpoint_id = ?",
+            (team_id, checkpoint_id),
+        ).fetchone()
+        if existing:
+            return False
+
+        conn.execute(
+            """
+            INSERT INTO progress (team_id, checkpoint_id, unlocked_at, elapsed_s, how)
+            VALUES (?, ?, ?, ?, 'gps')
+            """,
+            (team_id, checkpoint_id, unlocked_at, elapsed_s),
+        )
+
+        if is_last:
+            conn.execute(
+                """
+                UPDATE teams
+                SET inside_streak = 0, last_seen = ?, last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?, finished_at = ?
+                WHERE id = ?
+                """,
+                (unlocked_at, lat, lng, unlocked_at, unlocked_at, team_id),
+            )
+            conn.execute(
+                """
+                INSERT INTO events (ts, team_id, type, detail)
+                VALUES (?, ?, 'team_finished', 'Team completed all checkpoints')
+                """,
+                (unlocked_at, team_id),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE teams
+                SET inside_streak = 0, last_seen = ?, last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?
+                WHERE id = ?
+                """,
+                (unlocked_at, lat, lng, unlocked_at, team_id),
+            )
+
+        conn.execute(
+            """
+            INSERT INTO events (ts, team_id, type, detail)
+            VALUES (?, ?, 'checkpoint_unlocked', ?)
+            """,
+            (unlocked_at, team_id, f"Unlocked checkpoint {checkpoint_id} (elapsed {elapsed_s}s)"),
+        )
+        return True
+
+
