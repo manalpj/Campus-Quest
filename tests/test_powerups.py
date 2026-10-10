@@ -206,8 +206,14 @@ def test_alternating_powerup_awards_on_gps_unlocks(test_setup):
     assert st1["radar_left"] == 1
     assert st1["boost_left"] == 0
 
-    # Spot 2 coordinates
+    # Spot 2 coordinates (~40m away)
     lat2, lng2 = 22.69316, 75.8676
+
+    # Simulate walking to Spot 2 (30s elapsed -> plausible speed ~1.3 m/s)
+    conn = db.get_connection(test_setup["db_path"])
+    now = time.time()
+    with db.write_tx(conn):
+        conn.execute("UPDATE teams SET last_fix_ts = ?", (now - 30.0,))
 
     # Unlock Spot 2 (2 inside fixes)
     client.post("/api/ping", json={"lat": lat2, "lng": lng2, "accuracy": 10.0})

@@ -267,3 +267,22 @@
 
 **Q2: How does the server prevent floating-point rounding errors when calculating the 30% boosted radius during location checks?**  
 **A2:** In `game.py`, `compute_effective_radius` returns `base_radius * 1.30` as a standard Python 64-bit float, evaluated against Haversine distance using `is_inside(distance_m, effective_radius)`. Since geofence coordinates and distance metrics have natural tolerances of several centimetres, standard IEEE 754 arithmetic avoids domain edge cases without requiring arbitrary rounding hacks.
+
+---
+
+## Task 16: Speed plausibility check
+
+### 5-Line Interview Summary
+- Implemented pure function `speed_mps()` in `game.py` computing great-circle Haversine distance divided by server receive time delta with a minimum 1.0 s gap to prevent zero-division or division blow-ups.
+- Enforced speed plausibility in `/api/ping`: rejected any fix exceeding `MAX_SPEED_MPS` (12 m/s, ~43 km/h) by resetting `inside_streak` to 0 and returning `{"status": "implausible"}`.
+- Recorded a `speed_rejected` audit event in SQLite (`events` table) capturing the offending speed reading and limit threshold for organizer inspection.
+- Preserved `last_fix` coordinates and timestamp on rejected fixes so an implausible jump or spoof attempt never poisons subsequent legitimate location checks.
+- Handled network signal blackouts gracefully because legitimate jumps over long time gaps (e.g. 600m in 5 minutes) yield low speeds and are accepted.
+
+### Interview Questions & Answers
+**Q1: Why does a rejected speed fix NOT update `last_fix` in SQLite?**  
+**A1:** If an implausible fix (e.g. a 1,000 m teleport) updated `last_fix`, the very next fix—even when sent from the player's true physical location—would be compared against the fake teleport coordinates. The player would then be flagged as teleporting back across campus (another 1,000 m jump), poisoning the chain and locking them out of legitimate pings. Leaving `last_fix` untouched ensures one bad fix is safely dropped without corrupting future comparisons.
+
+**Q2: Can this speed plausibility check stop GPS spoofing entirely?**  
+**A2:** No, and we must be honest about that limitation. Speed plausibility stops rapid teleportation (e.g. jumping between opposite ends of campus in seconds), but it cannot detect a player walking at normal speeds while simulating GPS coordinates via developer tools or mocking apps. True physical presence verification relies on on-site organizers and physical proofs like QR codes or checkpoint answer phrases.
+

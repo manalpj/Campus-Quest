@@ -247,10 +247,18 @@ def test_outside_fix_resets_streak(player_client, test_setup):
     finally:
         conn.close()
 
-    # Second fix outside (e.g. 500m away)
+    # Second fix outside (39m away, 10s walking time -> plausible speed ~3.9 m/s)
+    now = time.time()
+    conn = db.get_connection()
+    try:
+        with db.write_tx(conn):
+            conn.execute("UPDATE teams SET last_fix_ts = ? WHERE id = ?", (now - 10.0, test_setup["team"]["id"]))
+    finally:
+        conn.close()
+
     res_out = player_client.post(
         "/api/ping",
-        json={"lat": 22.700000, "lng": 75.875000, "accuracy": 10.0},
+        json={"lat": 22.693350, "lng": 75.867000, "accuracy": 10.0},
     )
     assert res_out.status_code == 200
     assert res_out.json() == {"status": "searching"}
@@ -272,6 +280,15 @@ def test_final_checkpoint_unlock_sets_finished_at(player_client, test_setup):
     # Unlock checkpoint 1 (2 inside fixes)
     player_client.post("/api/ping", json={"lat": cp1["lat"], "lng": cp1["lng"], "accuracy": 10.0})
     player_client.post("/api/ping", json={"lat": cp1["lat"], "lng": cp1["lng"], "accuracy": 10.0})
+
+    # Simulate team walking to checkpoint 2 (60s elapsed)
+    conn = db.get_connection()
+    try:
+        now = time.time()
+        with db.write_tx(conn):
+            conn.execute("UPDATE teams SET last_fix_ts = ? WHERE id = ?", (now - 60.0, test_setup["team"]["id"]))
+    finally:
+        conn.close()
 
     # Unlock checkpoint 2 (2 inside fixes)
     player_client.post("/api/ping", json={"lat": cp2["lat"], "lng": cp2["lng"], "accuracy": 10.0})
@@ -366,3 +383,128 @@ def test_ping_never_leaks_coordinates_or_distance(player_client, test_setup):
     data2 = res2.json()
     for forbidden in ["lat", "lng", "radius", "distance", "distance_m", "checkpoint"]:
         assert forbidden not in data2
+
+
+# --- 6. Speed Plausibility Checks ---
+
+
+def test_ping_speed_implausible_rejected(player_client, test_setup):
+    """Pings exceeding MAX_SPEED_MPS are rejected, reset streak, log event, and leave last_fix intact."""
+    conn = db.get_connection()
+    try:
+        # First valid fix: establishes initial fix position
+        res1 = player_client.post(
+            "/api/ping",
+            json={"lat": 22.693000, "lng": 75.867000, "accuracy": 10.0},
+        )
+        assert res1.status_code == 200
+        assert res1.json()["status"] == "searching"
+
+        # Check DB: team has inside_streak=1 and last_fix recorded
+        team_id = test_setup["team"]["id"]
+        row1 = conn.execute("SELECT inside_streak, last_fix_lat, last_fix_lng, last_fix_ts FROM teams WHERE id = ?", (team_id,)).fetchone()
+        assert row1["inside_streak"] == 1
+        assert row1["last_fix_lat"] == 22.693000
+        initial_ts = row1["last_fix_ts"]
+
+        # Simulate 2 seconds passing, but jumping 200 metres (~100 m/s > 12 m/s)
+        now = time.time()
+        with db.write_tx(conn):
+            conn.execute("UPDATE teams SET last_fix_ts = ? WHERE id = ?", (now - 2.0, team_id))
+
+        res2 = player_client.post(
+            "/api/ping",
+            json={"lat": 22.694806, "lng": 75.867000, "accuracy": 10.0},
+        )
+        assert res2.status_code == 200
+        assert res2.json() == {"status": "implausible"}
+
+        # Check DB: inside_streak reset to 0, last_fix coordinates are NOT updated
+        row2 = conn.execute("SELECT inside_streak, last_fix_lat, last_fix_lng, last_fix_ts FROM teams WHERE id = ?", (team_id,)).fetchone()
+        assert row2["inside_streak"] == 0
+        assert row2["last_fix_lat"] == 22.693000  # remains original fix!
+        assert row2["last_fix_lng"] == 75.867000
+
+        # Check event logging
+        event = conn.execute(
+            "SELECT type, detail FROM events WHERE team_id = ? AND type = 'speed_rejected'",
+            (team_id,),
+        ).fetchone()
+        assert event is not None
+        assert "speed_mps=" in event["detail"]
+    finally:
+        conn.close()
+
+
+def test_ping_rejected_fix_does_not_poison_last_fix(player_client, test_setup):
+    """A rejected teleport fix does not poison the last_fix for subsequent legitimate pings."""
+    conn = db.get_connection()
+    try:
+        team_id = test_setup["team"]["id"]
+
+        # 1. First legitimate fix at position A
+        res1 = player_client.post(
+            "/api/ping",
+            json={"lat": 22.693000, "lng": 75.867000, "accuracy": 10.0},
+        )
+        assert res1.status_code == 200
+
+        # 2. Teleporting fix at position B 2 seconds later (rejected)
+        now = time.time()
+        with db.write_tx(conn):
+            conn.execute("UPDATE teams SET last_fix_ts = ? WHERE id = ?", (now - 4.0, team_id))
+
+        res2 = player_client.post(
+            "/api/ping",
+            json={"lat": 22.698000, "lng": 75.867000, "accuracy": 10.0},  # ~550m away
+        )
+        assert res2.json() == {"status": "implausible"}
+
+        # 3. Legitimate second fix near position A (e.g. 5m away, 10s after position A fix)
+        with db.write_tx(conn):
+            conn.execute("UPDATE teams SET last_fix_ts = ? WHERE id = ?", (now - 10.0, team_id))
+
+        res3 = player_client.post(
+            "/api/ping",
+            json={"lat": 22.693045, "lng": 75.867000, "accuracy": 10.0},  # ~5m from position A
+        )
+        # Should be accepted (speed = ~5m / 10s = ~0.5 m/s)
+        # If position B had been saved, speed would be ~550m / 10s = ~55 m/s and would have failed!
+        assert res3.status_code == 200
+        assert res3.json()["status"] == "searching"
+
+        # Verify last_fix updated to position C
+        row3 = conn.execute("SELECT last_fix_lat FROM teams WHERE id = ?", (team_id,)).fetchone()
+        assert row3["last_fix_lat"] == 22.693045
+    finally:
+        conn.close()
+
+
+def test_ping_speed_long_gap_signal_loss_accepted(player_client, test_setup):
+    """A long gap followed by a 600m jump (e.g. 5 minutes signal loss) gives low speed and is accepted."""
+    conn = db.get_connection()
+    try:
+        team_id = test_setup["team"]["id"]
+
+        # First fix
+        player_client.post(
+            "/api/ping",
+            json={"lat": 22.693000, "lng": 75.867000, "accuracy": 10.0},
+        )
+
+        # Simulate 5 minutes (300 s) gap
+        now = time.time()
+        with db.write_tx(conn):
+            conn.execute("UPDATE teams SET last_fix_ts = ? WHERE id = ?", (now - 300.0, team_id))
+
+        # 600m away fix (~22.698417)
+        res = player_client.post(
+            "/api/ping",
+            json={"lat": 22.698417, "lng": 75.867000, "accuracy": 10.0},
+        )
+        # 600m / 300s = 2 m/s <= 12 m/s -> accepted!
+        assert res.status_code == 200
+        assert res.json()["status"] != "implausible"
+    finally:
+        conn.close()
+

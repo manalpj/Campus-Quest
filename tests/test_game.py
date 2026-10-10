@@ -13,6 +13,7 @@ from game import (
     compute_effective_radius,
     is_powerup_active,
     format_radar_label,
+    speed_mps,
 )
 
 
@@ -198,4 +199,42 @@ def test_format_radar_label():
     assert format_radar_label(30.0) == "You're very close!"
     assert format_radar_label(30.5) == "31 m"
     assert format_radar_label(142.2) == "142 m"
+
+
+def test_speed_mps_rejected_200m_in_2s():
+    """200 m in 2 seconds gives ~100 m/s which exceeds MAX_SPEED_MPS (12)."""
+    # 22.700000 to 22.701806 is ~200.7 metres
+    speed = speed_mps(22.700000, 75.800000, 100.0, 22.701806, 75.800000, 102.0)
+    assert speed == pytest.approx(100.3, rel=1e-2)
+    assert speed > 12.0
+
+
+def test_speed_mps_accepted_20m_in_10s():
+    """20 m in 10 seconds gives ~2 m/s which is well within walking/cycling limits."""
+    # 22.700000 to 22.700180 is ~20.0 metres
+    speed = speed_mps(22.700000, 75.800000, 100.0, 22.700180, 75.800000, 110.0)
+    assert speed == pytest.approx(2.0, rel=1e-2)
+    assert speed <= 12.0
+
+
+def test_speed_mps_accepted_600m_in_5_minutes():
+    """600 m across 300 s (5 mins) gives ~2 m/s (legitimate jump after signal loss)."""
+    # 22.700000 to 22.705417 is ~601.9 metres
+    speed = speed_mps(22.700000, 75.800000, 100.0, 22.705417, 75.800000, 400.0)
+    assert speed == pytest.approx(2.0, rel=1e-2)
+    assert speed <= 12.0
+
+
+def test_speed_mps_minimum_time_gap():
+    """Sub-second time gap is clamped to 1.0 s minimum divisor to avoid division blow-up."""
+    # 5 metres apart
+    # In 0.1 s, without clamp would be 50 m/s; with 1.0 s clamp it is 5 m/s
+    speed = speed_mps(22.700000, 75.800000, 100.0, 22.700045, 75.800000, 100.1)
+    assert speed == pytest.approx(5.0, rel=1e-1)
+    assert speed <= 12.0
+
+    # Same timestamp (0 s gap) also divides by 1.0 rather than raising ZeroDivisionError
+    speed_zero_gap = speed_mps(22.700000, 75.800000, 100.0, 22.700045, 75.800000, 100.0)
+    assert speed_zero_gap == pytest.approx(5.0, rel=1e-1)
+
 

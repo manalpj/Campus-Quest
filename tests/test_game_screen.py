@@ -181,6 +181,15 @@ def test_api_state_when_all_checkpoints_completed(player_client, two_checkpoints
     player_client.post("/api/ping", json={"lat": cp1["lat"], "lng": cp1["lng"], "accuracy": 10.0})
     player_client.post("/api/ping", json={"lat": cp1["lat"], "lng": cp1["lng"], "accuracy": 10.0})
 
+    # Simulate walking to cp2 (60s elapsed)
+    conn = db.get_connection()
+    try:
+        now = time.time()
+        with db.write_tx(conn):
+            conn.execute("UPDATE teams SET last_fix_ts = ? WHERE id = ?", (now - 60.0, two_checkpoints_game["team"]["id"]))
+    finally:
+        conn.close()
+
     # Clear cp2
     player_client.post("/api/ping", json={"lat": cp2["lat"], "lng": cp2["lng"], "accuracy": 10.0})
     p_last = player_client.post("/api/ping", json={"lat": cp2["lat"], "lng": cp2["lng"], "accuracy": 10.0})

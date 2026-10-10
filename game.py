@@ -19,6 +19,7 @@ EVENT_GAME_STARTED = "game_started"
 EVENT_GAME_ENDED = "game_ended"
 EVENT_ADMIN_LOGIN_SUCCESS = "admin_login_success"
 EVENT_ADMIN_LOGIN_FAILURE = "admin_login_failure"
+EVENT_SPEED_REJECTED = "speed_rejected"
 
 EVENT_TYPES = frozenset({
     EVENT_TEAM_REGISTERED,
@@ -30,6 +31,7 @@ EVENT_TYPES = frozenset({
     EVENT_GAME_ENDED,
     EVENT_ADMIN_LOGIN_SUCCESS,
     EVENT_ADMIN_LOGIN_FAILURE,
+    EVENT_SPEED_REJECTED,
 })
 
 
@@ -225,5 +227,25 @@ def format_radar_label(distance_m: float) -> str:
     if distance_m <= 30.0:
         return "You're very close!"
     return f"{int(distance_m + 0.5)} m"
+
+
+def speed_mps(
+    prev_lat: float,
+    prev_lng: float,
+    prev_ts: float,
+    lat: float,
+    lng: float,
+    ts: float,
+) -> float:
+    """Calculate speed in metres per second between two GPS fixes.
+
+    Uses great-circle Haversine distance and server receive timestamps.
+    Enforces a minimum time gap of 1.0 second to avoid division by zero or
+    unrealistic speed spikes on rapid consecutive pings.
+    """
+    dist_m = haversine_m(prev_lat, prev_lng, lat, lng)
+    dt_s = max(1.0, ts - prev_ts)
+    return dist_m / dt_s
+
 
 

@@ -550,6 +550,19 @@ def touch_team_last_seen(conn: sqlite3.Connection, team_id: int, now: float) -> 
         )
 
 
+def reset_team_streak(conn: sqlite3.Connection, team_id: int, now: float) -> None:
+    """Reset inside_streak to 0 and update last_seen, keeping last_fix coordinates intact.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    """
+    with write_tx(conn):
+        conn.execute(
+            "UPDATE teams SET inside_streak = 0, last_seen = ? WHERE id = ?",
+            (now, team_id),
+        )
+
+
+
 def unlock_checkpoint(
     conn: sqlite3.Connection,
     team_id: int,

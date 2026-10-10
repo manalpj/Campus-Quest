@@ -808,6 +808,31 @@ def ping_location(
         db.touch_team_last_seen(conn, team["id"], now)
         return {"status": "weak_gps"}
 
+    # Speed plausibility check: reject teleporting fixes (> MAX_SPEED_MPS)
+    if (
+        fresh_team["last_fix_lat"] is not None
+        and fresh_team["last_fix_lng"] is not None
+        and fresh_team["last_fix_ts"] is not None
+    ):
+        speed = game.speed_mps(
+            prev_lat=fresh_team["last_fix_lat"],
+            prev_lng=fresh_team["last_fix_lng"],
+            prev_ts=fresh_team["last_fix_ts"],
+            lat=body.lat,
+            lng=body.lng,
+            ts=now,
+        )
+        if speed > config.MAX_SPEED_MPS:
+            db.reset_team_streak(conn, team["id"], now)
+            db.log_event(
+                conn,
+                team["id"],
+                game.EVENT_SPEED_REJECTED,
+                f"speed_mps={speed:.2f} max={config.MAX_SPEED_MPS}",
+            )
+            return {"status": "implausible"}
+
+
     # Find next checkpoint (lowest position not in progress)
     next_cp = db.get_team_next_checkpoint(conn, team["id"])
     if not next_cp:

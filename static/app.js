@@ -862,6 +862,8 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchState();
           } else if (data.status === 'weak_gps') {
             setGpsStatus('GPS weak, move to open area', 'chip-weak');
+          } else if (data.status === 'implausible') {
+            setGpsStatus('Speed too high / teleporting', 'chip-weak');
           } else if (data.status === 'completed') {
             fetchState();
             showFinishScreen();
