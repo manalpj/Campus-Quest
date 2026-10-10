@@ -197,15 +197,15 @@ determine_awarded_powerup = award_for
 def compute_effective_radius(
     base_radius_m: float,
     boost_active: bool,
-    boost_extra_m: float = 20.0,
+    boost_percent: float = 0.30,
 ) -> float:
     """Return effective geofence radius in metres.
 
-    If Radius boost is currently active, adds boost_extra_m (default 20m)
-    to the base checkpoint radius.
+    If Radius boost is currently active, increases the base radius
+    by boost_percent (e.g. 0.30 = +30%).
     """
     if boost_active:
-        return base_radius_m + boost_extra_m
+        return base_radius_m * (1.0 + boost_percent)
     return base_radius_m
 
 

@@ -672,7 +672,7 @@ def activate_powerup(
     Requires authenticated team device. Game must be running.
     - hint: adds HINT_PENALTY_S (+3m) penalty, reveals checkpoint hint. Max 1 per checkpoint.
     - radar: consumes 1 radar, activates live distance tracking for RADAR_DURATION_S (60s).
-    - boost: consumes 1 boost, expands geofence radius by BOOST_EXTRA_RADIUS_M (+20m) for BOOST_DURATION_S (120s).
+    - boost: consumes 1 boost, expands geofence radius by BOOST_PERCENT (+30%) for BOOST_DURATION_S (120s).
     """
     valid_types = {"hint", "radar", "boost"}
     clean_type = powerup_type.strip().lower()
@@ -747,7 +747,7 @@ def activate_powerup(
             "boost_left": remaining,
             "boost_until_ms": int(boost_until * 1000),
             "duration_s": config.BOOST_DURATION_S,
-            "extra_radius_m": config.BOOST_EXTRA_RADIUS_M,
+            "boost_percent": int(round(config.BOOST_PERCENT * 100)),
         }
 
 
@@ -826,7 +826,7 @@ def ping_location(
     effective_radius = game.compute_effective_radius(
         next_cp["radius"],
         boost_active=boost_active,
-        boost_extra_m=config.BOOST_EXTRA_RADIUS_M,
+        boost_percent=config.BOOST_PERCENT,
     )
     inside = game.is_inside(dist_m, effective_radius)
 

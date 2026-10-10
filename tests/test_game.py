@@ -177,10 +177,11 @@ def test_determine_awarded_powerup():
 
 
 def test_compute_effective_radius():
-    """Expands base radius only when boost is active."""
+    """Expands base radius by percentage only when boost is active."""
     assert compute_effective_radius(30.0, boost_active=False) == 30.0
-    assert compute_effective_radius(30.0, boost_active=True, boost_extra_m=20.0) == 50.0
-    assert compute_effective_radius(25.0, boost_active=True, boost_extra_m=15.0) == 40.0
+    assert compute_effective_radius(30.0, boost_active=True, boost_percent=0.30) == 39.0
+    assert compute_effective_radius(50.0, boost_active=True, boost_percent=0.30) == 65.0
+    assert compute_effective_radius(25.0, boost_active=True, boost_percent=0.20) == 30.0
 
 
 def test_is_powerup_active():

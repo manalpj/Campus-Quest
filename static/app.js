@@ -910,7 +910,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (type === 'radar') {
           showPowerupToast('📡 Radar active! Tracking live distance for 60s');
         } else if (type === 'boost') {
-          showPowerupToast('⚡ Radius boost active! +20m radius for 120s');
+          showPowerupToast('⚡ Radius boost active! +30% radius for 120s');
         }
         fetchState();
       })

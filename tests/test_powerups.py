@@ -155,7 +155,7 @@ def test_radar_powerup_activation_and_ping_exposure(test_setup):
 
 
 def test_boost_powerup_expands_radius(test_setup):
-    """Radius boost (+20m) allows unlocking at distances beyond the base 30m radius."""
+    """Radius boost (+30%) allows unlocking at distances beyond the base 30m radius (up to 39m)."""
     client = test_setup["client"]
     conn = db.get_connection(test_setup["db_path"])
 
@@ -163,9 +163,9 @@ def test_boost_powerup_expands_radius(test_setup):
     with db.write_tx(conn):
         conn.execute("UPDATE teams SET boost_left = 1")
 
-    # Spot 1 is at 22.6928, 75.8676.
-    # Lat delta 0.00036 is about 40m away: outside 30m base radius, inside 50m boosted radius.
-    test_lat = 22.6928 + 0.00036
+    # Spot 1 is at 22.6928, 75.8676 with base radius 30m.
+    # Lat delta 0.00031 is about 34.5m away: outside 30m base radius, inside 39m boosted radius (+30%).
+    test_lat = 22.6928 + 0.00031
     test_lng = 75.8676
 
     # Ping without boost -> streak is 0, status searching
@@ -176,6 +176,7 @@ def test_boost_powerup_expands_radius(test_setup):
     b_res = client.post("/api/powerup/boost")
     assert b_res.status_code == 200
     assert b_res.json()["boost_left"] == 0
+    assert b_res.json()["boost_percent"] == 30
 
     # Fix 1 inside boosted radius (streak = 1)
     p2 = client.post("/api/ping", json={"lat": test_lat, "lng": test_lng, "accuracy": 10.0}).json()
@@ -234,7 +235,7 @@ def test_boost_cannot_use_with_none_left(test_setup):
 
 
 def test_boost_not_inside_after_timer_ends(test_setup):
-    """Fix at distance between radius (30m) and radius+20m (50m) is NOT inside once boost timer expires."""
+    """Fix at distance between base radius (30m) and boosted radius (39m) is NOT inside once boost timer expires."""
     client = test_setup["client"]
     conn = db.get_connection(test_setup["db_path"])
 
@@ -242,9 +243,9 @@ def test_boost_not_inside_after_timer_ends(test_setup):
     with db.write_tx(conn):
         conn.execute("UPDATE teams SET boost_left = 1")
 
-    # Spot 1 is at 22.6928, 75.8676 (radius 30m).
-    # Delta 0.00036 is ~40m away (between 30m and 50m).
-    test_lat = 22.6928 + 0.00036
+    # Spot 1 is at 22.6928, 75.8676 (radius 30m, boosted to 39m).
+    # Delta 0.00031 is ~34.5m away (between 30m and 39m).
+    test_lat = 22.6928 + 0.00031
     test_lng = 75.8676
 
     # Activate boost
@@ -261,8 +262,8 @@ def test_boost_not_inside_after_timer_ends(test_setup):
     with db.write_tx(conn):
         conn.execute("UPDATE teams SET boost_until = ?", (time.time() - 5.0,))
 
-    # Ping at the same ~40m distance after timer expired -> evaluated against base 30m radius
-    # Since 40m > 30m, fix is outside: streak resets to 0, status remains searching
+    # Ping at the same ~34.5m distance after timer expired -> evaluated against base 30m radius
+    # Since 34.5m > 30m, fix is outside: streak resets to 0, status remains searching
     p2 = client.post("/api/ping", json={"lat": test_lat, "lng": test_lng, "accuracy": 10.0}).json()
     assert p2["status"] == "searching"
     team_after = db.get_team_by_id(conn, 1)

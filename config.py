@@ -102,7 +102,7 @@ MAX_SPEED_MPS: float = _get_float("MAX_SPEED_MPS", 12.0)
 HINT_PENALTY_S: int = _get_int("HINT_PENALTY_S", 180)
 RADAR_DURATION_S: int = _get_int("RADAR_DURATION_S", 60)
 BOOST_DURATION_S: int = _get_int("BOOST_DURATION_S", 120)
-BOOST_EXTRA_RADIUS_M: float = _get_float("BOOST_EXTRA_RADIUS_M", 20.0)
+BOOST_PERCENT: float = _get_float("BOOST_PERCENT", 0.30)
 SKIP_WAIT_S: int = _get_int("SKIP_WAIT_S", 600)
 SKIP_PENALTY_S: int = _get_int("SKIP_PENALTY_S", 600)
 
