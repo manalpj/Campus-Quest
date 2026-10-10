@@ -304,4 +304,23 @@
 **Q2: Why do time adjustments invalidate the in-memory leaderboard cache immediately?**  
 **A2:** The public leaderboard endpoint caches computed team rankings for up to 1 second to minimize database load. When an organizer adds or removes minutes (or deletes a team), players watching the big screen or lobby expect instantaneous updates. Invalidating `_leaderboard_cache` on every adjust and delete ensures standings reflect penalty corrections on the very next 5-second poll cycle without stale delay.
 
+---
+
+## Fix: Checkpoint Readiness Counter Sync in Admin Panel
+
+### 5-Line Interview Summary
+- Identified desynchronization where the Game tab's checkpoint readiness counter (`game-cp-counter`) remained stale while the Checkpoints tab reflected the true count.
+- Updated `renderCheckpoints()` in `gods.js` to synchronously update both `#cp-counter-pill` and `#game-cp-counter` / `#game-cp-status-text`.
+- Replaced isolated checkpoint loading with `Promise.all([loadCheckpoints(), loadGameStatus()])` inside `saveCheckpointForm`, `handleReorderCheckpoint`, and `handleDeleteCheckpoint`.
+- Added automatic re-fetching in `switchTab()` so navigating between Game, Checkpoints, and Teams immediately updates the active view.
+- Introduced 5-second polling on the Game tab so quest status, registration state, and checkpoint readiness stay fresh automatically.
+
+### Interview Questions & Answers
+**Q1: Why did the Checkpoints tab show 6 checkpoints while the Game tab showed "0 of 5 needed"?**  
+**A1:** The Checkpoints tab updated its local DOM pill `#cp-counter-pill` directly from the `/api/gods/checkpoints` response, but checkpoint creation and deletion functions never re-fetched `/api/gods/game/status` nor updated the Game tab's DOM element `#game-cp-counter`. Furthermore, switching tabs did not trigger a fresh status load, leaving the Game tab displaying its initial static HTML.
+
+**Q2: How does the fix prevent this state discrepancy between the two tabs?**  
+**A2:** First, `renderCheckpoints()` now simultaneously updates both tab counter elements whenever checkpoints are loaded. Second, checkpoint mutations (add, reorder, delete) now await both `loadCheckpoints()` and `loadGameStatus()` together. Finally, `switchTab()` immediately re-fetches the active tab's endpoint and runs 5-second polling on the Game tab.
+
+
 

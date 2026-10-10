@@ -101,6 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let countdownTimerInterval = null;
   let teamsData = [];
   let teamsRefreshInterval = null;
+  let gameStatusRefreshInterval = null;
   let pendingDeleteTeamId = null;
 
   function showLoginAlert(message, isError = true) {
@@ -199,8 +200,23 @@ document.addEventListener("DOMContentLoaded", () => {
       tabPanelTeams.hidden = !isTeams;
     }
 
-    if (isCheckpoints && mapInstance) {
-      setTimeout(() => mapInstance.invalidateSize(), 120);
+    if (isGame) {
+      loadGameStatus();
+      if (!gameStatusRefreshInterval) {
+        gameStatusRefreshInterval = setInterval(loadGameStatus, 5000);
+      }
+    } else {
+      if (gameStatusRefreshInterval) {
+        clearInterval(gameStatusRefreshInterval);
+        gameStatusRefreshInterval = null;
+      }
+    }
+
+    if (isCheckpoints) {
+      loadCheckpoints();
+      if (mapInstance) {
+        setTimeout(() => mapInstance.invalidateSize(), 120);
+      }
     }
 
     if (isTeams) {
@@ -425,6 +441,10 @@ document.addEventListener("DOMContentLoaded", () => {
       clearInterval(teamsRefreshInterval);
       teamsRefreshInterval = null;
     }
+    if (gameStatusRefreshInterval) {
+      clearInterval(gameStatusRefreshInterval);
+      gameStatusRefreshInterval = null;
+    }
     const container = document.querySelector(".gods-container");
     if (container) container.classList.remove("gods-container-shell");
     if (adminShellSection) adminShellSection.hidden = true;
@@ -542,6 +562,9 @@ document.addEventListener("DOMContentLoaded", () => {
         loadGameStatus(),
         loadCheckpoints(),
       ]);
+      if (tabPanelGame && !tabPanelGame.hidden && !gameStatusRefreshInterval) {
+        gameStatusRefreshInterval = setInterval(loadGameStatus, 5000);
+      }
       setTimeout(() => {
         if (mapInstance) mapInstance.invalidateSize();
       }, 150);
@@ -861,7 +884,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       closeCheckpointForm();
-      await loadCheckpoints();
+      await Promise.all([
+        loadCheckpoints(),
+        loadGameStatus(),
+      ]);
     } catch (err) {
       showFormAlert("Network error while saving checkpoint: " + err.message);
     } finally {
@@ -894,13 +920,43 @@ document.addEventListener("DOMContentLoaded", () => {
     const count = checkpointsData.length;
     const isLocked = Boolean(currentGameStatus && currentGameStatus.game_state !== "setup");
 
-    // Update counter pill
+    // Update counter pill in Checkpoints tab
     if (counterPill) {
       counterPill.textContent = `${count} of ${minNeeded} needed`;
       if (count >= minNeeded) {
         counterPill.className = "counter-pill counter-satisfied";
       } else {
         counterPill.className = "counter-pill";
+      }
+    }
+
+    // Also update checkpoint readiness counter in Game tab
+    if (gameCpCounter) {
+      gameCpCounter.textContent = `${count} of ${minNeeded} needed`;
+      gameCpCounter.className = count >= minNeeded ? "counter-pill counter-satisfied" : "counter-pill";
+    }
+    if (gameCpStatusText) {
+      if (count >= minNeeded) {
+        gameCpStatusText.textContent = `Ready! You have ${count} checkpoints configured (minimum is ${minNeeded}).`;
+      } else {
+        gameCpStatusText.textContent = `Need ${minNeeded - count} more checkpoint(s) before game can start.`;
+      }
+    }
+
+    // Update start button readiness if in setup state
+    if (currentGameStatus && currentGameStatus.game_state === "setup" && btnGameStart) {
+      if (count >= minNeeded) {
+        btnGameStart.disabled = false;
+        if (startDisabledReason) {
+          startDisabledReason.textContent = "";
+          startDisabledReason.hidden = true;
+        }
+      } else {
+        btnGameStart.disabled = true;
+        if (startDisabledReason) {
+          startDisabledReason.textContent = `Cannot start: configure at least ${minNeeded} checkpoints (currently ${count}).`;
+          startDisabledReason.hidden = false;
+        }
       }
     }
 
@@ -1067,7 +1123,10 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(errorData.detail || "Failed to reorder checkpoint.");
       }
 
-      await loadCheckpoints();
+      await Promise.all([
+        loadCheckpoints(),
+        loadGameStatus(),
+      ]);
     } catch (err) {
       showGlobalAlert("Reorder error: " + err.message, true);
     }
@@ -1098,7 +1157,10 @@ document.addEventListener("DOMContentLoaded", () => {
         closeCheckpointForm();
       }
 
-      await loadCheckpoints();
+      await Promise.all([
+        loadCheckpoints(),
+        loadGameStatus(),
+      ]);
     } catch (err) {
       showGlobalAlert("Delete error: " + err.message, true);
     }
