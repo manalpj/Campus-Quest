@@ -1025,4 +1025,147 @@ body {
   line-height: 1.4;
 }
 
+/* ==========================================================================
+   Admin Game Tab & Player Game Screen Placeholder
+   ========================================================================== */
+
+.gods-game-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-16);
+  margin-top: var(--space-16);
+}
+
+@media (min-width: 680px) {
+  .gods-game-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+}
+
+.gods-card-section {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
+}
+
+.section-heading {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: var(--space-8);
+}
+
+.state-overview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+}
+
+.state-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.badge-status {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-4) var(--space-8);
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.badge-setup {
+  background-color: var(--attention-bg);
+  color: var(--attention);
+  border: 1px solid #f9ab00;
+}
+
+.badge-running {
+  background-color: #e6f4ea;
+  color: var(--success);
+  border: 1px solid #ceead6;
+}
+
+.badge-ended {
+  background-color: var(--bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.badge-open {
+  background-color: #e6f4ea;
+  color: var(--success);
+  border: 1px solid #ceead6;
+}
+
+.badge-closed {
+  background-color: #fce8e6;
+  color: var(--error);
+  border: 1px solid #fad2cf;
+}
+
+.countdown-banner {
+  background-color: #e8f0fe;
+  color: var(--primary);
+  border: 1px solid #c2e7ff;
+  border-radius: var(--radius);
+  padding: var(--space-8) var(--space-12);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.game-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  margin-top: var(--space-8);
+}
+
+.error-hint {
+  font-size: 0.8125rem;
+  color: var(--error);
+  line-height: 1.4;
+}
+
+/* Player Placeholder Game Screen */
+#game-screen-placeholder {
+  text-align: center;
+}
+
+.placeholder-header {
+  margin-bottom: var(--space-16);
+}
+
+.placeholder-badge {
+  background-color: #e6f4ea;
+  color: var(--success);
+  border: 1px solid #ceead6;
+}
+
+.placeholder-card-content {
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-16);
+  margin-bottom: var(--space-16);
+  text-align: left;
+}
+
+.placeholder-clue-box {
+  margin-top: var(--space-8);
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 

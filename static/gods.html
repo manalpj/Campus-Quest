@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="/style.css">
 </head>
+
 <body class="gods-body">
   <main class="gods-container">
     <!-- Unauthenticated Login View -->
@@ -20,26 +22,14 @@
       <form id="login-form" novalidate>
         <div class="form-group">
           <label for="admin-username-input">User ID</label>
-          <input
-            id="admin-username-input"
-            type="text"
-            name="username"
-            required
-            autocomplete="username"
-            placeholder="Enter organizer ID"
-          />
+          <input id="admin-username-input" type="text" name="username" required autocomplete="username"
+            placeholder="Enter organizer ID" />
         </div>
 
         <div class="form-group">
           <label for="admin-password-input">Password</label>
-          <input
-            id="admin-password-input"
-            type="password"
-            name="password"
-            required
-            autocomplete="current-password"
-            placeholder="Enter passphrase"
-          />
+          <input id="admin-password-input" type="password" name="password" required autocomplete="current-password"
+            placeholder="Enter passphrase" />
         </div>
 
         <button type="submit" id="login-submit-btn" class="gods-btn gods-btn-primary">
@@ -64,13 +54,79 @@
 
       <!-- Admin Tab Bar -->
       <nav class="gods-tabs" role="tablist" aria-label="Admin panel navigation">
-        <button type="button" role="tab" id="tab-btn-checkpoints" class="gods-tab-btn active" aria-selected="true" aria-controls="tab-panel-checkpoints">
+        <button type="button" role="tab" id="tab-btn-game" class="gods-tab-btn active" aria-selected="true"
+          aria-controls="tab-panel-game">
+          Game
+        </button>
+        <button type="button" role="tab" id="tab-btn-checkpoints" class="gods-tab-btn" aria-selected="false"
+          aria-controls="tab-panel-checkpoints">
           Checkpoints
         </button>
       </nav>
 
+      <!-- Game Control Tab Panel -->
+      <section id="tab-panel-game" role="tabpanel" aria-labelledby="tab-btn-game" class="gods-tab-panel">
+        <div id="gods-game-alert" class="gods-alert" role="alert" hidden></div>
+
+        <div class="gods-game-grid">
+          <!-- Game Status & Controls Card -->
+          <div class="gods-card-section">
+            <h2 class="section-heading">Quest State</h2>
+            <div class="state-overview-row">
+              <span class="state-label">Current state:</span>
+              <span id="game-state-badge" class="badge-status badge-setup">Setup</span>
+            </div>
+            <div id="game-countdown-banner" class="countdown-banner" hidden>
+              Game starts in <strong id="game-countdown-sec">10</strong>s
+            </div>
+            <p id="game-state-desc" class="form-hint">
+              The game is in setup. Configure checkpoints and open registration when ready.
+            </p>
+            <div class="game-btn-group">
+              <button type="button" id="btn-game-start" class="gods-btn gods-btn-primary">
+                Start Game (10s Countdown)
+              </button>
+              <button type="button" id="btn-game-end" class="gods-btn gods-btn-danger" disabled>
+                End Game
+              </button>
+            </div>
+            <p id="start-disabled-reason" class="error-hint" hidden></p>
+          </div>
+
+          <!-- Registration Control Card -->
+          <div class="gods-card-section">
+            <h2 class="section-heading">Team Registration</h2>
+            <div class="state-overview-row">
+              <span class="state-label">Registration status:</span>
+              <span id="reg-status-badge" class="badge-status badge-open">Open</span>
+            </div>
+            <p id="reg-status-desc" class="form-hint">
+              Players can register teams on the main page while registration is open.
+            </p>
+            <button type="button" id="btn-toggle-registration" class="gods-btn gods-btn-secondary">
+              Close Registration
+            </button>
+          </div>
+
+          <!-- Checkpoint Readiness Card -->
+          <div class="gods-card-section">
+            <h2 class="section-heading">Checkpoint Readiness</h2>
+            <div class="state-overview-row">
+              <span class="state-label">Checkpoints:</span>
+              <span id="game-cp-counter" class="counter-pill">0 of 5 needed</span>
+            </div>
+            <p id="game-cp-status-text" class="form-hint">
+              At least 5 checkpoints are required to start the game.
+            </p>
+            <button type="button" id="btn-switch-to-checkpoints" class="gods-btn gods-btn-secondary gods-btn-sm">
+              Manage Checkpoints &rarr;
+            </button>
+          </div>
+        </div>
+      </section>
+
       <!-- Checkpoints Tab Panel -->
-      <section id="tab-panel-checkpoints" role="tabpanel" aria-labelledby="tab-btn-checkpoints" class="gods-tab-panel">
+      <section id="tab-panel-checkpoints" role="tabpanel" aria-labelledby="tab-btn-checkpoints" class="gods-tab-panel" hidden>
         <div class="gods-panel-top">
           <div class="gods-counter-badge">
             <span id="cp-counter-pill" class="counter-pill">0 of 5 needed</span>
@@ -103,7 +159,8 @@
 
                 <div class="form-group">
                   <label for="cp-name">Name <span class="form-hint">(admin only, max 60 chars)</span></label>
-                  <input type="text" id="cp-name" maxlength="60" required placeholder="e.g. A-Block Mechanical Courtyard">
+                  <input type="text" id="cp-name" maxlength="60" required
+                    placeholder="e.g. A-Block Mechanical Courtyard">
                 </div>
 
                 <div class="form-grid-2">
@@ -130,17 +187,20 @@
 
                 <div class="form-group">
                   <label for="cp-clue">Clue <span class="form-hint">(what teams see, max 300)</span></label>
-                  <textarea id="cp-clue" rows="3" maxlength="300" required placeholder="Clue or riddle leading to this spot..."></textarea>
+                  <textarea id="cp-clue" rows="3" maxlength="300" required
+                    placeholder="Clue or riddle leading to this spot..."></textarea>
                 </div>
 
                 <div class="form-group">
                   <label for="cp-hint">Easier Hint <span class="form-hint">(+3 min penalty, max 300)</span></label>
-                  <textarea id="cp-hint" rows="2" maxlength="300" required placeholder="Direct clue if team gets stuck..."></textarea>
+                  <textarea id="cp-hint" rows="2" maxlength="300" required
+                    placeholder="Direct clue if team gets stuck..."></textarea>
                 </div>
 
                 <div class="form-group">
                   <label for="cp-story">Story <span class="form-hint">(optional after unlock, max 300)</span></label>
-                  <textarea id="cp-story" rows="2" maxlength="300" placeholder="Optional historical fact about this spot..."></textarea>
+                  <textarea id="cp-story" rows="2" maxlength="300"
+                    placeholder="Optional historical fact about this spot..."></textarea>
                 </div>
 
                 <div id="cp-form-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
@@ -173,5 +233,5 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/gods.js"></script>
 </body>
-</html>
 
+</html>

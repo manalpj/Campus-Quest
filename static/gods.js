@@ -17,6 +17,28 @@ document.addEventListener("DOMContentLoaded", () => {
   const loginAlert = document.getElementById("login-alert");
   const currentAdminName = document.getElementById("current-admin-name");
 
+  // Elements: Tabs
+  const tabBtnGame = document.getElementById("tab-btn-game");
+  const tabBtnCheckpoints = document.getElementById("tab-btn-checkpoints");
+  const tabPanelGame = document.getElementById("tab-panel-game");
+  const tabPanelCheckpoints = document.getElementById("tab-panel-checkpoints");
+
+  // Elements: Game Tab
+  const gameAlert = document.getElementById("gods-game-alert");
+  const gameStateBadge = document.getElementById("game-state-badge");
+  const gameCountdownBanner = document.getElementById("game-countdown-banner");
+  const gameCountdownSec = document.getElementById("game-countdown-sec");
+  const gameStateDesc = document.getElementById("game-state-desc");
+  const btnGameStart = document.getElementById("btn-game-start");
+  const btnGameEnd = document.getElementById("btn-game-end");
+  const startDisabledReason = document.getElementById("start-disabled-reason");
+  const regStatusBadge = document.getElementById("reg-status-badge");
+  const regStatusDesc = document.getElementById("reg-status-desc");
+  const btnToggleRegistration = document.getElementById("btn-toggle-registration");
+  const gameCpCounter = document.getElementById("game-cp-counter");
+  const gameCpStatusText = document.getElementById("game-cp-status-text");
+  const btnSwitchToCheckpoints = document.getElementById("btn-switch-to-checkpoints");
+
   // Elements: Checkpoints Workspace
   const globalAlert = document.getElementById("gods-global-alert");
   const counterPill = document.getElementById("cp-counter-pill");
@@ -48,6 +70,8 @@ document.addEventListener("DOMContentLoaded", () => {
   let draftMarker = null;
   let draftCircle = null;
   let isMapInitialized = false;
+  let currentGameStatus = null;
+  let countdownTimerInterval = null;
 
   function showLoginAlert(message, isError = true) {
     if (!loginAlert) return;
@@ -85,6 +109,231 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!cpFormAlert) return;
     cpFormAlert.textContent = "";
     cpFormAlert.hidden = true;
+  }
+
+  function showGameAlert(message, isError = true) {
+    if (!gameAlert) return;
+    gameAlert.textContent = message;
+    gameAlert.hidden = false;
+    gameAlert.className = isError ? "gods-alert gods-alert-error" : "gods-alert gods-alert-success";
+  }
+
+  function hideGameAlert() {
+    if (!gameAlert) return;
+    gameAlert.textContent = "";
+    gameAlert.hidden = true;
+  }
+
+  function switchTab(tabName) {
+    hideGameAlert();
+    hideGlobalAlert();
+
+    const isGame = tabName === "game";
+    if (tabBtnGame) {
+      tabBtnGame.classList.toggle("active", isGame);
+      tabBtnGame.setAttribute("aria-selected", isGame ? "true" : "false");
+    }
+    if (tabBtnCheckpoints) {
+      tabBtnCheckpoints.classList.toggle("active", !isGame);
+      tabBtnCheckpoints.setAttribute("aria-selected", !isGame ? "true" : "false");
+    }
+    if (tabPanelGame) {
+      tabPanelGame.hidden = !isGame;
+    }
+    if (tabPanelCheckpoints) {
+      tabPanelCheckpoints.hidden = isGame;
+    }
+
+    if (!isGame && mapInstance) {
+      setTimeout(() => mapInstance.invalidateSize(), 120);
+    }
+  }
+
+  async function loadGameStatus() {
+    try {
+      const res = await fetch("/api/gods/game/status", {
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        throw new Error("Failed to load game status.");
+      }
+      const data = await res.json();
+      currentGameStatus = data;
+      renderGameStatus(data);
+    } catch (err) {
+      showGameAlert("Status fetch error: " + err.message, true);
+    }
+  }
+
+  function renderGameStatus(status) {
+    if (!status) return;
+
+    // 1. Current State Badge
+    if (gameStateBadge) {
+      gameStateBadge.textContent = status.game_state;
+      gameStateBadge.className = `badge-status badge-${status.game_state}`;
+    }
+
+    // Countdown / status descriptions
+    if (countdownTimerInterval) {
+      clearInterval(countdownTimerInterval);
+      countdownTimerInterval = null;
+    }
+
+    if (status.game_state === "running") {
+      if (gameStateDesc) {
+        gameStateDesc.textContent = "The quest is live. Checkpoint positions and order are locked.";
+      }
+      const serverOffsetMs = status.server_now_ms - Date.now();
+      const currentServerTime = Date.now() + serverOffsetMs;
+      if (status.started_at_ms && currentServerTime < status.started_at_ms) {
+        if (gameCountdownBanner) gameCountdownBanner.hidden = false;
+        const updateCountdown = () => {
+          const nowServer = Date.now() + serverOffsetMs;
+          const remainingSec = Math.max(0, Math.ceil((status.started_at_ms - nowServer) / 1000));
+          if (gameCountdownSec) gameCountdownSec.textContent = remainingSec;
+          if (remainingSec <= 0) {
+            if (gameCountdownBanner) gameCountdownBanner.hidden = true;
+            clearInterval(countdownTimerInterval);
+            countdownTimerInterval = null;
+          }
+        };
+        updateCountdown();
+        countdownTimerInterval = setInterval(updateCountdown, 1000);
+      } else {
+        if (gameCountdownBanner) gameCountdownBanner.hidden = true;
+      }
+    } else if (status.game_state === "ended") {
+      if (gameStateDesc) {
+        gameStateDesc.textContent = "The game has ended. Results are finalized.";
+      }
+      if (gameCountdownBanner) gameCountdownBanner.hidden = true;
+    } else {
+      if (gameStateDesc) {
+        gameStateDesc.textContent = "The game is in setup. Configure checkpoints and open registration when ready.";
+      }
+      if (gameCountdownBanner) gameCountdownBanner.hidden = true;
+    }
+
+    // 2. Registration status
+    if (regStatusBadge) {
+      const isOpen = status.registration_open;
+      regStatusBadge.textContent = isOpen ? "Open" : "Closed";
+      regStatusBadge.className = `badge-status ${isOpen ? "badge-open" : "badge-closed"}`;
+    }
+    if (btnToggleRegistration) {
+      btnToggleRegistration.textContent = status.registration_open ? "Close Registration" : "Open Registration";
+      btnToggleRegistration.disabled = (status.game_state === "ended");
+    }
+
+    // 3. Checkpoint Readiness Counter
+    const cpCount = status.checkpoint_count;
+    const minCp = status.min_checkpoints;
+    if (gameCpCounter) {
+      gameCpCounter.textContent = `${cpCount} of ${minCp} needed`;
+      gameCpCounter.className = cpCount >= minCp ? "counter-pill counter-satisfied" : "counter-pill";
+    }
+    if (gameCpStatusText) {
+      if (cpCount >= minCp) {
+        gameCpStatusText.textContent = `Ready! You have ${cpCount} checkpoints configured (minimum is ${minCp}).`;
+      } else {
+        gameCpStatusText.textContent = `Need ${minCp - cpCount} more checkpoint(s) before game can start.`;
+      }
+    }
+
+    // 4. Start & End Button availability & reasons
+    if (btnGameStart) {
+      if (status.game_state === "running") {
+        btnGameStart.disabled = true;
+        if (startDisabledReason) {
+          startDisabledReason.textContent = "Game is already running.";
+          startDisabledReason.hidden = false;
+        }
+      } else if (status.game_state === "ended") {
+        btnGameStart.disabled = true;
+        if (startDisabledReason) {
+          startDisabledReason.textContent = "Game has ended.";
+          startDisabledReason.hidden = false;
+        }
+      } else if (cpCount < minCp) {
+        btnGameStart.disabled = true;
+        if (startDisabledReason) {
+          startDisabledReason.textContent = `Cannot start: configure at least ${minCp} checkpoints (currently ${cpCount}).`;
+          startDisabledReason.hidden = false;
+        }
+      } else {
+        btnGameStart.disabled = false;
+        if (startDisabledReason) {
+          startDisabledReason.textContent = "";
+          startDisabledReason.hidden = true;
+        }
+      }
+    }
+
+    if (btnGameEnd) {
+      btnGameEnd.disabled = (status.game_state !== "running");
+    }
+  }
+
+  async function handleToggleRegistration() {
+    if (!currentGameStatus) return;
+    hideGameAlert();
+    const action = currentGameStatus.registration_open ? "close" : "open";
+    try {
+      const res = await fetch(`/api/gods/registration/${action}`, {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Failed to ${action} registration.`);
+      }
+      await loadGameStatus();
+      showGameAlert(`Registration successfully ${action === "open" ? "opened" : "closed"}.`, false);
+    } catch (err) {
+      showGameAlert("Error toggling registration: " + err.message, true);
+    }
+  }
+
+  async function handleStartGame() {
+    hideGameAlert();
+    try {
+      const res = await fetch("/api/gods/game/start", {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to start game.");
+      }
+      await loadGameStatus();
+      await loadCheckpoints();
+      showGameAlert("Game started! 10-second countdown is live on all devices.", false);
+    } catch (err) {
+      showGameAlert("Start error: " + err.message, true);
+    }
+  }
+
+  async function handleEndGame() {
+    const confirmed = window.confirm("Are you sure you want to end the game? This will stop the quest for all teams.");
+    if (!confirmed) return;
+
+    hideGameAlert();
+    try {
+      const res = await fetch("/api/gods/game/end", {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to end game.");
+      }
+      await loadGameStatus();
+      await loadCheckpoints();
+      showGameAlert("Game ended successfully.", false);
+    } catch (err) {
+      showGameAlert("End error: " + err.message, true);
+    }
   }
 
   function showAdminShell(username) {
@@ -217,7 +466,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       campusConfig = await response.json();
       initMap(campusConfig);
-      await loadCheckpoints();
+      await Promise.all([
+        loadGameStatus(),
+        loadCheckpoints(),
+      ]);
       setTimeout(() => {
         if (mapInstance) mapInstance.invalidateSize();
       }, 150);
@@ -342,6 +594,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function startNewCheckpointDraft(lat, lng) {
+    if (currentGameStatus && currentGameStatus.game_state !== "setup") {
+      showGlobalAlert("Cannot add checkpoints once the game has started.", true);
+      return;
+    }
+
     clearDraftMarker();
     hideFormAlert();
 
@@ -377,8 +634,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (cpNameInput) cpNameInput.value = "";
     if (cpLatInput) cpLatInput.value = lat;
     if (cpLngInput) cpLngInput.value = lng;
-    if (cpRadiusInput) cpRadiusInput.value = defaultRadius;
-    if (cpPositionInput) cpPositionInput.value = nextPosition;
+    if (cpRadiusInput) {
+      cpRadiusInput.value = defaultRadius;
+      cpRadiusInput.disabled = false;
+    }
+    if (cpPositionInput) {
+      cpPositionInput.value = nextPosition;
+      cpPositionInput.disabled = false;
+    }
     if (cpClueInput) cpClueInput.value = "";
     if (cpHintInput) cpHintInput.value = "";
     if (cpStoryInput) cpStoryInput.value = "";
@@ -393,20 +656,32 @@ document.addEventListener("DOMContentLoaded", () => {
     clearDraftMarker();
     hideFormAlert();
 
+    const isLocked = currentGameStatus && currentGameStatus.game_state !== "setup";
+
     if (cpFormTitle) cpFormTitle.textContent = `Edit Checkpoint #${cp.position}`;
     if (cpIdInput) cpIdInput.value = cp.id;
     if (cpNameInput) cpNameInput.value = cp.name;
     if (cpLatInput) cpLatInput.value = cp.lat;
     if (cpLngInput) cpLngInput.value = cp.lng;
-    if (cpRadiusInput) cpRadiusInput.value = cp.radius;
-    if (cpPositionInput) cpPositionInput.value = cp.position;
+    if (cpRadiusInput) {
+      cpRadiusInput.value = cp.radius;
+      cpRadiusInput.disabled = isLocked;
+    }
+    if (cpPositionInput) {
+      cpPositionInput.value = cp.position;
+      cpPositionInput.disabled = isLocked;
+    }
     if (cpClueInput) cpClueInput.value = cp.clue;
     if (cpHintInput) cpHintInput.value = cp.hint;
     if (cpStoryInput) cpStoryInput.value = cp.story || "";
 
+    if (isLocked) {
+      showFormAlert("Game has started. Location, radius, and order cannot be changed. Only clue, hint, and story may be edited.");
+    }
+
     if (cpFormCard) {
       cpFormCard.hidden = false;
-      cpNameInput.focus();
+      (isLocked && cpClueInput ? cpClueInput : cpNameInput).focus();
     }
 
     if (mapInstance) {
@@ -417,6 +692,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeCheckpointForm() {
     clearDraftMarker();
     hideFormAlert();
+    if (cpRadiusInput) cpRadiusInput.disabled = false;
+    if (cpPositionInput) cpPositionInput.disabled = false;
     if (cpFormCard) cpFormCard.hidden = true;
     if (cpIdInput) cpIdInput.value = "";
     if (cpForm) cpForm.reset();
@@ -543,6 +820,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderCheckpoints() {
     const minNeeded = (campusConfig && campusConfig.min_checkpoints) ? campusConfig.min_checkpoints : 5;
     const count = checkpointsData.length;
+    const isLocked = Boolean(currentGameStatus && currentGameStatus.game_state !== "setup");
 
     // Update counter pill
     if (counterPill) {
@@ -552,6 +830,15 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         counterPill.className = "counter-pill";
       }
+    }
+
+    if (btnAddCheckpoint) {
+      btnAddCheckpoint.disabled = isLocked;
+      btnAddCheckpoint.title = isLocked ? "Cannot add checkpoints after game start" : "";
+    }
+    if (btnAddCheckpointList) {
+      btnAddCheckpointList.disabled = isLocked;
+      btnAddCheckpointList.title = isLocked ? "Cannot add checkpoints after game start" : "";
     }
 
     // Clear existing map markers and circles
@@ -568,7 +855,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!mapInstance) return;
 
       const marker = L.marker([cp.lat, cp.lng], {
-        draggable: true,
+        draggable: !isLocked,
         title: `#${cp.position} ${cp.name}`,
       }).addTo(mapInstance);
 
@@ -585,23 +872,25 @@ document.addEventListener("DOMContentLoaded", () => {
         openEditCheckpoint(cp);
       });
 
-      // On marker drag: update coordinates in real time
-      marker.on("drag", (evt) => {
-        const pos = evt.target.getLatLng();
-        const newLat = parseFloat(pos.lat.toFixed(6));
-        const newLng = parseFloat(pos.lng.toFixed(6));
-        circle.setLatLng(pos);
+      // On marker drag: update coordinates in real time (only when not locked)
+      if (!isLocked) {
+        marker.on("drag", (evt) => {
+          const pos = evt.target.getLatLng();
+          const newLat = parseFloat(pos.lat.toFixed(6));
+          const newLng = parseFloat(pos.lng.toFixed(6));
+          circle.setLatLng(pos);
 
-        // If the form is currently open for this checkpoint, update lat/lng inputs
-        const currentOpenId = parseInt(cpIdInput ? cpIdInput.value : "", 10);
-        if (currentOpenId === cp.id) {
-          if (cpLatInput) cpLatInput.value = newLat;
-          if (cpLngInput) cpLngInput.value = newLng;
-        } else {
-          // Open edit form so organizer can review & save new coordinates
-          openEditCheckpoint({ ...cp, lat: newLat, lng: newLng });
-        }
-      });
+          // If the form is currently open for this checkpoint, update lat/lng inputs
+          const currentOpenId = parseInt(cpIdInput ? cpIdInput.value : "", 10);
+          if (currentOpenId === cp.id) {
+            if (cpLatInput) cpLatInput.value = newLat;
+            if (cpLngInput) cpLngInput.value = newLng;
+          } else {
+            // Open edit form so organizer can review & save new coordinates
+            openEditCheckpoint({ ...cp, lat: newLat, lng: newLng });
+          }
+        });
+      }
 
       mapMarkers.set(cp.id, { marker, circle });
     });
@@ -636,13 +925,13 @@ document.addEventListener("DOMContentLoaded", () => {
           <button type="button" class="gods-btn-sm btn-edit" aria-label="Edit checkpoint ${escapeHtml(cp.name)}">
             Edit
           </button>
-          <button type="button" class="gods-btn-sm btn-up" ${isFirst ? "disabled" : ""} aria-label="Move checkpoint #${cp.position} up">
+          <button type="button" class="gods-btn-sm btn-up" ${isFirst || isLocked ? "disabled" : ""} aria-label="Move checkpoint #${cp.position} up">
             &uarr; Up
           </button>
-          <button type="button" class="gods-btn-sm btn-down" ${isLast ? "disabled" : ""} aria-label="Move checkpoint #${cp.position} down">
+          <button type="button" class="gods-btn-sm btn-down" ${isLast || isLocked ? "disabled" : ""} aria-label="Move checkpoint #${cp.position} down">
             &darr; Down
           </button>
-          <button type="button" class="gods-btn-sm gods-btn-danger btn-delete" aria-label="Delete checkpoint ${escapeHtml(cp.name)}">
+          <button type="button" class="gods-btn-sm gods-btn-danger btn-delete" ${isLocked ? "disabled" : ""} aria-label="Delete checkpoint ${escapeHtml(cp.name)}">
             Delete
           </button>
         </div>
@@ -658,15 +947,15 @@ document.addEventListener("DOMContentLoaded", () => {
         editBtn.addEventListener("click", () => openEditCheckpoint(cp));
       }
 
-      if (upBtn && !isFirst) {
+      if (upBtn && !isFirst && !isLocked) {
         upBtn.addEventListener("click", () => handleReorderCheckpoint(cp, cp.position - 1));
       }
 
-      if (downBtn && !isLast) {
+      if (downBtn && !isLast && !isLocked) {
         downBtn.addEventListener("click", () => handleReorderCheckpoint(cp, cp.position + 1));
       }
 
-      if (delBtn) {
+      if (delBtn && !isLocked) {
         delBtn.addEventListener("click", () => handleDeleteCheckpoint(cp));
       }
 
@@ -675,6 +964,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function handleReorderCheckpoint(cp, newPosition) {
+    if (currentGameStatus && currentGameStatus.game_state !== "setup") {
+      showGlobalAlert("Checkpoint order cannot be changed once the game has started.", true);
+      return;
+    }
     hideGlobalAlert();
     try {
       const payload = {
@@ -709,6 +1002,10 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function handleDeleteCheckpoint(cp) {
+    if (currentGameStatus && currentGameStatus.game_state !== "setup") {
+      showGlobalAlert("Checkpoints cannot be deleted once the game has started.", true);
+      return;
+    }
     const confirmed = window.confirm(`Delete checkpoint #${cp.position}: "${cp.name}"?`);
     if (!confirmed) return;
 
@@ -743,6 +1040,26 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  }
+
+  // --- Attach Tab & Action Event Listeners ---
+  if (tabBtnGame) {
+    tabBtnGame.addEventListener("click", () => switchTab("game"));
+  }
+  if (tabBtnCheckpoints) {
+    tabBtnCheckpoints.addEventListener("click", () => switchTab("checkpoints"));
+  }
+  if (btnSwitchToCheckpoints) {
+    btnSwitchToCheckpoints.addEventListener("click", () => switchTab("checkpoints"));
+  }
+  if (btnToggleRegistration) {
+    btnToggleRegistration.addEventListener("click", handleToggleRegistration);
+  }
+  if (btnGameStart) {
+    btnGameStart.addEventListener("click", handleStartGame);
+  }
+  if (btnGameEnd) {
+    btnGameEnd.addEventListener("click", handleEndGame);
   }
 
   // Check session on page load

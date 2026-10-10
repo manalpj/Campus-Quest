@@ -10,6 +10,7 @@ import os
 from typing import Optional
 from pathlib import Path
 import sqlite3
+import time
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -265,6 +266,13 @@ def create_checkpoint(
     conn: sqlite3.Connection = Depends(db.get_db),
 ):
     """Create a new checkpoint, automatically shifting existing positions to avoid duplicates."""
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    if game_state != "setup":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot add checkpoints once the game has started",
+        )
+
     row = db.create_checkpoint(
         conn,
         name=body.name.strip(),
@@ -286,7 +294,28 @@ def update_checkpoint(
     admin_user: str = Depends(auth.require_admin),
     conn: sqlite3.Connection = Depends(db.get_db),
 ):
-    """Update checkpoint details and safely adjust sequence order if position changes."""
+    """Update checkpoint details and safely adjust sequence order if position changes.
+
+    Locking rule: once the game has started, changes to location, radius,
+    and order are rejected. Only clue, hint, and story text may be updated.
+    """
+    existing = db.get_checkpoint_by_id(conn, checkpoint_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Checkpoint not found")
+
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    if game_state != "setup":
+        lat_changed = abs(existing["lat"] - body.lat) > 1e-6
+        lng_changed = abs(existing["lng"] - body.lng) > 1e-6
+        radius_changed = abs(existing["radius"] - body.radius) > 1e-6
+        pos_changed = (body.position is not None) and (body.position != existing["position"])
+
+        if lat_changed or lng_changed or radius_changed or pos_changed:
+            raise HTTPException(
+                status_code=400,
+                detail="Checkpoint location, radius, and order are locked once the game has started. Only clue, hint, and story text may be edited.",
+            )
+
     row = db.update_checkpoint(
         conn,
         checkpoint_id=checkpoint_id,
@@ -299,8 +328,6 @@ def update_checkpoint(
         story=body.story.strip() if body.story else None,
         position=body.position,
     )
-    if not row:
-        raise HTTPException(status_code=404, detail="Checkpoint not found")
     return dict(row)
 
 
@@ -310,11 +337,126 @@ def delete_checkpoint(
     admin_user: str = Depends(auth.require_admin),
     conn: sqlite3.Connection = Depends(db.get_db),
 ):
-    """Delete checkpoint and renumber subsequent checkpoints to maintain continuous ordering."""
+    """Delete checkpoint and renumber subsequent checkpoints to maintain continuous ordering.
+
+    Locking rule: checkpoints cannot be deleted once the game has started.
+    """
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    if game_state != "setup":
+        raise HTTPException(
+            status_code=400,
+            detail="Checkpoints cannot be deleted once the game has started",
+        )
+
     deleted = db.delete_checkpoint(conn, checkpoint_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Checkpoint not found")
     return {"status": "ok", "deleted_id": checkpoint_id}
+
+
+# --- Game Control Endpoints ---
+
+
+@app.post("/api/gods/registration/open")
+def open_registration(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Open team registration for players."""
+    db.set_setting(conn, "registration_open", "1")
+    db.log_event(conn, "registration_opened", f"Registration opened by {admin_user}")
+    return {"status": "ok", "registration_open": True}
+
+
+@app.post("/api/gods/registration/close")
+def close_registration(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Close team registration for players."""
+    db.set_setting(conn, "registration_open", "0")
+    db.log_event(conn, "registration_closed", f"Registration closed by {admin_user}")
+    return {"status": "ok", "registration_open": False}
+
+
+@app.post("/api/gods/game/start")
+def start_game(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Start the game, requiring at least MIN_CHECKPOINTS checkpoints.
+
+    Sets game_state = 'running' and started_at = server_time + COUNTDOWN_S.
+    """
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    if game_state == "running":
+        raise HTTPException(status_code=400, detail="Game is already running")
+    if game_state == "ended":
+        raise HTTPException(status_code=400, detail="Game has already ended")
+
+    cp_count = db.get_checkpoint_count(conn)
+    if cp_count < config.MIN_CHECKPOINTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot start game: at least {config.MIN_CHECKPOINTS} checkpoints required (currently {cp_count})",
+        )
+
+    now = time.time()
+    started_at = now + config.COUNTDOWN_S
+    db.set_setting(conn, "game_state", "running")
+    db.set_setting(conn, "started_at", str(started_at))
+    db.log_event(
+        conn,
+        "game_started",
+        f"Game started by {admin_user} with {config.COUNTDOWN_S}s countdown",
+    )
+    return {
+        "status": "ok",
+        "game_state": "running",
+        "started_at": started_at,
+        "started_at_ms": int(started_at * 1000),
+        "countdown_s": config.COUNTDOWN_S,
+    }
+
+
+@app.post("/api/gods/game/end")
+def end_game(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """End the active game session."""
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    if game_state == "ended":
+        raise HTTPException(status_code=400, detail="Game has already ended")
+
+    db.set_setting(conn, "game_state", "ended")
+    db.log_event(conn, "game_ended", f"Game ended by {admin_user}")
+    return {"status": "ok", "game_state": "ended"}
+
+
+@app.get("/api/gods/game/status")
+def get_gods_game_status(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Return administrative overview of game state, registration, and checkpoints."""
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    reg_open = (db.get_setting(conn, "registration_open") == "1")
+    started_at_str = db.get_setting(conn, "started_at")
+    started_at = float(started_at_str) if started_at_str else None
+    now = time.time()
+    cp_count = db.get_checkpoint_count(conn)
+
+    return {
+        "game_state": game_state,
+        "registration_open": reg_open,
+        "checkpoint_count": cp_count,
+        "min_checkpoints": config.MIN_CHECKPOINTS,
+        "server_now_ms": int(now * 1000),
+        "started_at": started_at,
+        "started_at_ms": int(started_at * 1000) if started_at else None,
+        "countdown_s": config.COUNTDOWN_S,
+    }
 
 
 # --- Player Team & Device Endpoints ---
@@ -410,9 +552,15 @@ def get_game_state(
     """Return active game state and team info for authenticated player device."""
     game_state = db.get_setting(conn, "game_state") or "setup"
     members = json.loads(team["members"]) if team["members"] else []
+    now = time.time()
+    started_at_str = db.get_setting(conn, "started_at")
+    started_at = float(started_at_str) if started_at_str else None
+    started_at_ms = int(started_at * 1000) if started_at else None
 
     return {
         "game_state": game_state,
+        "server_now_ms": int(now * 1000),
+        "started_at_ms": started_at_ms,
         "name": team["name"],
         "members": members,
         "code": team["code"],

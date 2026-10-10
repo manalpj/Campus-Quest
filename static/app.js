@@ -28,6 +28,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const lobbyTeamCode = document.getElementById('lobby-team-code');
   const lobbyMembersList = document.getElementById('lobby-members-list');
   const lobbyDeviceStatus = document.getElementById('lobby-device-status');
+  const lobbyStatusBadge = document.getElementById('lobby-status-badge');
+  const lobbyCountdownBanner = document.getElementById('lobby-countdown-banner');
+  const lobbyCountdownSec = document.getElementById('lobby-countdown-sec');
+
+  // Game screen placeholder elements
+  const gameOverlay = document.getElementById('game-overlay');
+  const gameScreenTeamName = document.getElementById('game-screen-team-name');
+  const gameScreenBadge = document.getElementById('game-screen-badge');
+  const gameScreenStatusDesc = document.getElementById('game-screen-status-desc');
+
+  // Time & Polling State
+  let serverOffsetMs = null;
+  let countdownInterval = null;
+  let pollingTimer = null;
+  let pollIntervalMs = 4000;
 
   function setStatus(message, statusClass) {
     if (!statusEl) return;
@@ -170,14 +185,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           return data;
         })
-        .then((teamData) => {
-          showLobby({
-            name: teamData.name,
-            code: teamData.code,
-            members: teamData.members,
-            device_status: "this phone is your team's device",
-            game_state: 'setup',
-          });
+        .then(() => {
+          checkSession();
         })
         .catch((err) => {
           btnSubmitRegister.disabled = false;
@@ -217,14 +226,8 @@ document.addEventListener('DOMContentLoaded', () => {
           }
           return data;
         })
-        .then((teamData) => {
-          showLobby({
-            name: teamData.name,
-            code: teamData.code,
-            members: teamData.members,
-            device_status: "this phone is your team's device",
-            game_state: 'setup',
-          });
+        .then(() => {
+          checkSession();
         })
         .catch((err) => {
           btnSubmitJoin.disabled = false;
@@ -234,12 +237,95 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- Lobby Display Controller ---
+  // --- State, Lobby & Countdown Controller ---
 
-  function showLobby(state) {
+  function updateGameState(state) {
+    if (!state) return;
+
+    // Compute clock offset once so client never trusts phone clock
+    if (serverOffsetMs === null && typeof state.server_now_ms === 'number') {
+      serverOffsetMs = state.server_now_ms - Date.now();
+    }
+
     if (authOverlay) authOverlay.hidden = true;
-    if (lobbyOverlay) lobbyOverlay.hidden = false;
 
+    // Clear active countdown timer tick
+    if (countdownInterval) {
+      clearInterval(countdownInterval);
+      countdownInterval = null;
+    }
+
+    const currentServerTime = Date.now() + (serverOffsetMs || 0);
+
+    if (state.game_state === 'setup') {
+      if (gameOverlay) gameOverlay.hidden = true;
+      if (lobbyOverlay) lobbyOverlay.hidden = false;
+      if (lobbyCountdownBanner) lobbyCountdownBanner.hidden = true;
+      if (lobbyStatusBadge) {
+        lobbyStatusBadge.textContent = 'Waiting for the organizer to start';
+        lobbyStatusBadge.className = 'status-badge status-waiting';
+      }
+      populateLobbyDetails(state);
+    } else if (state.game_state === 'running') {
+      if (state.started_at_ms && currentServerTime < state.started_at_ms) {
+        // Countdown is active
+        if (gameOverlay) gameOverlay.hidden = true;
+        if (lobbyOverlay) lobbyOverlay.hidden = false;
+        if (lobbyCountdownBanner) lobbyCountdownBanner.hidden = false;
+        if (lobbyStatusBadge) {
+          lobbyStatusBadge.textContent = 'Quest starting shortly...';
+          lobbyStatusBadge.className = 'status-badge status-waiting';
+        }
+        populateLobbyDetails(state);
+
+        const updateCountdown = () => {
+          const nowServer = Date.now() + (serverOffsetMs || 0);
+          const remainingSec = Math.max(0, Math.ceil((state.started_at_ms - nowServer) / 1000));
+          if (lobbyCountdownSec) lobbyCountdownSec.textContent = remainingSec;
+          if (remainingSec <= 0) {
+            clearInterval(countdownInterval);
+            countdownInterval = null;
+            showGamePlaceholder(state);
+          }
+        };
+        updateCountdown();
+        countdownInterval = setInterval(updateCountdown, 1000);
+      } else {
+        // Game has started and countdown has finished
+        showGamePlaceholder(state);
+      }
+    } else if (state.game_state === 'ended') {
+      if (lobbyOverlay) lobbyOverlay.hidden = true;
+      if (gameOverlay) {
+        gameOverlay.hidden = false;
+        if (gameScreenTeamName) gameScreenTeamName.textContent = state.name || '---';
+        if (gameScreenBadge) {
+          gameScreenBadge.textContent = 'Quest Ended';
+          gameScreenBadge.className = 'status-badge status-waiting';
+        }
+        if (gameScreenStatusDesc) {
+          gameScreenStatusDesc.textContent = 'The event has concluded. View final leaderboard with organizers!';
+        }
+      }
+    }
+  }
+
+  function showGamePlaceholder(state) {
+    if (lobbyOverlay) lobbyOverlay.hidden = true;
+    if (gameOverlay) {
+      gameOverlay.hidden = false;
+      if (gameScreenTeamName) gameScreenTeamName.textContent = state.name || '---';
+      if (gameScreenBadge) {
+        gameScreenBadge.textContent = 'Quest in progress';
+        gameScreenBadge.className = 'status-badge placeholder-badge';
+      }
+      if (gameScreenStatusDesc) {
+        gameScreenStatusDesc.textContent = 'Searching for Checkpoint #1...';
+      }
+    }
+  }
+
+  function populateLobbyDetails(state) {
     if (lobbyTeamName) lobbyTeamName.textContent = state.name;
     if (lobbyTeamCode) lobbyTeamCode.textContent = state.code;
     if (lobbyDeviceStatus && state.device_status) {
@@ -257,24 +343,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // --- Session Restoration Check ---
+  // --- Session Restoration & Background Polling ---
+
+  function startPolling() {
+    if (pollingTimer) clearInterval(pollingTimer);
+    pollingTimer = setInterval(() => {
+      fetch('/api/state')
+        .then((res) => {
+          if (res.ok) return res.json();
+          if (res.status === 401) {
+            if (pollingTimer) {
+              clearInterval(pollingTimer);
+              pollingTimer = null;
+            }
+            if (authOverlay) authOverlay.hidden = false;
+            if (lobbyOverlay) lobbyOverlay.hidden = true;
+            if (gameOverlay) gameOverlay.hidden = true;
+          }
+          return null;
+        })
+        .then((state) => {
+          if (state) updateGameState(state);
+        })
+        .catch(() => {});
+    }, pollIntervalMs);
+  }
 
   function checkSession() {
     fetch('/api/state')
       .then((res) => {
         if (res.ok) {
           return res.json().then((state) => {
-            showLobby(state);
+            updateGameState(state);
+            startPolling();
           });
         }
         if (res.status === 401) {
           if (authOverlay) authOverlay.hidden = false;
           if (lobbyOverlay) lobbyOverlay.hidden = true;
+          if (gameOverlay) gameOverlay.hidden = true;
         }
       })
       .catch(() => {
         if (authOverlay) authOverlay.hidden = false;
         if (lobbyOverlay) lobbyOverlay.hidden = true;
+        if (gameOverlay) gameOverlay.hidden = true;
       });
   }
 

@@ -127,3 +127,19 @@
 
 **Q2: Why do we require a consecutive streak of 2 inside fixes rather than unlocking immediately on the first fix inside the radius?**  
 **A2:** Mobile phone GPS chips frequently experience transient multipath signal reflections and momentary drift, particularly when near large campus buildings or trees. Requiring two consecutive valid fixes inside the geofence radius filters out single-frame jumps, ensuring the player has genuinely walked into and remained at the physical location before triggering an unlock.
+
+## Task 9: Game control (registration, Start, End) and the locking rule
+
+### 5-Line Interview Summary
+- Built administrative lifecycle control endpoints (`POST /api/gods/registration/{open,close}` and `POST /api/gods/game/{start,end}`) guarded by `require_admin` with operational audit logging in SQLite.
+- Refused game start unless at least `MIN_CHECKPOINTS` checkpoints exist, setting `started_at = server_time + COUNTDOWN_S` (default 10 s) so all connected devices share a synchronized launch countdown.
+- Enforced checkpoint locking rules after game start: PUT rejects modifications to coordinates, radius, and route position (HTTP 400) while permitting clue, hint, and story edits; DELETE and POST are strictly rejected.
+- Extended `GET /api/state` to return `server_now_ms`, `started_at_ms`, and `game_state`, enabling client phones to compute a one-time server clock offset and run accurate countdowns without trusting local phone clocks.
+- Added a responsive "Game" tab in `/gods` with state badges, registration toggle, checkpoint readiness counters, and confirmation-guarded End button, alongside player UI lobby-to-game transitions.
+
+### Interview Questions & Answers
+**Q1: Why does `GET /api/state` return `server_now_ms` and how does the client calculate the countdown without trusting the phone's clock?**  
+**A1:** Mobile phone clocks are frequently desynchronized due to manual adjustments, battery-saver drift, or network discrepancies. When the client receives `/api/state`, it calculates a clock offset once (`server_offset = server_now_ms - Date.now()`). For all subsequent countdown ticks, it computes estimated server time as `Date.now() + server_offset`. This guarantees that every phone counts down to `started_at_ms` in lockstep regardless of local device clock skew.
+
+**Q2: Why do we enforce the checkpoint locking rule once the game is running, while still allowing clue, hint, and story text edits?**  
+**A2:** Changing coordinates, radii, positions, or deleting checkpoints during a live game would corrupt players' route order, create race conditions with active geofence evaluations, and create unfair advantages. However, organizers may notice a typo or want to clarify confusing clue or hint wording while teams are hunting. Allowing text updates while locking physical coordinates and sequence order protects game integrity without locking out organizers from clarifying clues.

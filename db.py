@@ -6,6 +6,7 @@ All raw SQL statements are isolated here. No game rules live in this module.
 from contextlib import contextmanager
 from pathlib import Path
 import sqlite3
+import time
 from typing import Generator, Optional
 
 import config
@@ -304,6 +305,44 @@ def get_setting(conn: sqlite3.Connection, key: str) -> Optional[str]:
     """Retrieve setting value by key, or None if not set."""
     row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
     return row["value"] if row else None
+
+
+def set_setting(conn: sqlite3.Connection, key: str, value: str) -> None:
+    """Insert or update a setting value in the settings table.
+
+    Runs inside a write_tx (BEGIN IMMEDIATE) transaction.
+    """
+    with write_tx(conn):
+        conn.execute(
+            """
+            INSERT INTO settings (key, value) VALUES (?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            """,
+            (key, value),
+        )
+
+
+def get_checkpoint_count(conn: sqlite3.Connection) -> int:
+    """Return the total number of configured checkpoints."""
+    row = conn.execute("SELECT COUNT(*) FROM checkpoints").fetchone()
+    return row[0] if row else 0
+
+
+def log_event(
+    conn: sqlite3.Connection,
+    event_type: str,
+    detail: Optional[str] = None,
+    team_id: Optional[int] = None,
+) -> None:
+    """Record an operational or game audit event into the events table.
+
+    Runs inside a write_tx (BEGIN IMMEDIATE) transaction.
+    """
+    with write_tx(conn):
+        conn.execute(
+            "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, ?, ?)",
+            (time.time(), team_id, event_type, detail),
+        )
 
 
 def get_team_by_code(conn: sqlite3.Connection, code: str) -> Optional[sqlite3.Row]:
