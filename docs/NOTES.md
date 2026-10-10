@@ -111,3 +111,19 @@
 
 **Q2: Why does the client restore its session using the HttpOnly `quest_device` cookie and `GET /api/state` instead of keeping team state in browser `localStorage`?**  
 **A2:** Browser `localStorage` can be viewed and modified by client scripts or lost if browser storage is cleared, creating synchronization and trust issues. Keeping all authoritative state on the server and authenticating strictly via an HttpOnly cookie prevents client-side tampering, keeps sensitive tokens invisible to JavaScript, and ensures a seamless resume on page reload.
+
+## Task 8: Pure geofence logic with tests
+
+### 5-Line Interview Summary
+- Implemented hand-crafted `haversine_m` in `game.py` using Python's standard `math` module and $R = 6,371,000\text{ m}$ to compute spherical ground distances without external libraries.
+- Added numeric safety clamping ($a \in [0.0, 1.0]$) to protect against floating-point roundoff errors during `asin` and `sqrt` calculations for identical or antipodal points.
+- Built clean domain rule functions (`is_inside`, `accuracy_ok`, `next_streak`, `should_unlock`) containing zero SQL and zero HTTP dependencies.
+- Enforced geofence boundary rules where exact radius matches count as inside, while GPS accuracy limits reject noisy readings that exceed the threshold.
+- Authored a comprehensive unit test suite in `tests/test_game.py` verifying known geographic coordinates, longitude meridian convergence, boundary edges, and streak reset mechanics.
+
+### Interview Questions & Answers
+**Q1: Why did you write your own Haversine calculation with the `math` module instead of using an existing library like `geopy`?**  
+**A1:** Writing Haversine by hand avoids introducing third-party dependencies for a single formula, keeps our deployment footprint lean, and allows us to explain every line in an interview. Haversine with a mean spherical radius of 6,371,000 metres provides sub-metre accuracy across campus-scale distances, which is ideal for verifying 25–40 metre geofence radii.
+
+**Q2: Why do we require a consecutive streak of 2 inside fixes rather than unlocking immediately on the first fix inside the radius?**  
+**A2:** Mobile phone GPS chips frequently experience transient multipath signal reflections and momentary drift, particularly when near large campus buildings or trees. Requiring two consecutive valid fixes inside the geofence radius filters out single-frame jumps, ensuring the player has genuinely walked into and remained at the physical location before triggering an unlock.
