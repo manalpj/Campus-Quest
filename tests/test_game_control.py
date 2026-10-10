@@ -312,8 +312,37 @@ def test_api_state_returns_server_timestamps_and_game_state(anon_client, admin_c
 
 
 def test_reset_game_flow(admin_client):
-    """Admin can reset an ended or running game back to setup, clearing started_at."""
+    """Admin can reset an ended or running game back to setup, clearing started_at and teams progress."""
     seed_checkpoints(count=config.MIN_CHECKPOINTS)
+
+    # Register a team and simulate progress/completion
+    conn = db.get_connection()
+    try:
+        team_row, device_token = db.create_team(conn, "Phoenix", ["P1", "P2"])
+        team_id = team_row["id"]
+        token_hash = auth.hash_device_token(device_token)
+        # Give team progress, penalty, streak, finished_at
+        cps = db.get_checkpoints(conn)
+        with db.write_tx(conn):
+            for cp in cps:
+                conn.execute(
+                    "INSERT INTO progress (team_id, checkpoint_id, unlocked_at, elapsed_s, how) VALUES (?, ?, ?, ?, 'gps')",
+                    (team_id, cp["id"], 60.0, 60),
+                )
+            conn.execute(
+                """
+                UPDATE teams
+                SET finished_at = 12345.0,
+                    penalty_s = 600,
+                    radar_left = 2,
+                    inside_streak = 2
+                WHERE id = ?
+                """,
+                (team_id,),
+            )
+    finally:
+        conn.close()
+
     # Start and end
     admin_client.post("/api/gods/game/start")
     admin_client.post("/api/gods/game/end")
@@ -322,19 +351,40 @@ def test_reset_game_flow(admin_client):
     res = admin_client.post("/api/gods/game/reset")
     assert res.status_code == 200
     assert res.json()["game_state"] == "setup"
+    assert res.json()["teams_reset"] >= 1
 
     # Status reflects setup and cleared started_at
     status = admin_client.get("/api/gods/game/status").json()
     assert status["game_state"] == "setup"
     assert status["started_at"] is None
 
-    # Verify event logged
+    # Verify team progress in DB was cleared
     conn = db.get_connection()
     try:
-        events = db.get_latest_events(conn, limit=5)
+        team = db.get_team_by_id(conn, team_id)
+        assert team["finished_at"] is None
+        assert team["penalty_s"] == 0
+        assert team["radar_left"] == 0
+        assert team["inside_streak"] == 0
+        assert team["device_hash"] == token_hash  # device pairing preserved
+        cleared_count, _ = db.get_team_progress_counts(conn, team_id)
+        assert cleared_count == 0
+
+        events = db.get_latest_events(conn, limit=10)
         assert any(e["type"] == game.EVENT_GAME_RESET for e in events)
+        assert any(e["type"] == game.EVENT_TEAMS_PROGRESS_RESET for e in events)
     finally:
         conn.close()
+
+    # Team device state reflects reset
+    player_client = TestClient(app)
+    player_client.cookies.set(auth.DEVICE_COOKIE_NAME, device_token)
+    state_res = player_client.get("/api/state")
+    assert state_res.status_code == 200
+    state_data = state_res.json()
+    assert state_data["finished"] is False
+    assert state_data["cleared"] == 0
+    assert state_data["game_state"] == "setup"
 
     # Can start again after reset
     restart_res = admin_client.post("/api/gods/game/start")

@@ -327,6 +327,15 @@ def gods_page():
     return FileResponse(gods_file)
 
 
+@app.get("/board")
+def board_page():
+    """Serve big-screen leaderboard HTML for projector display."""
+    board_file = STATIC_DIR / "board.html"
+    if not board_file.is_file():
+        raise HTTPException(status_code=404, detail="Board page not found")
+    return FileResponse(board_file)
+
+
 # --- Administrative API Endpoints ---
 
 
@@ -602,11 +611,13 @@ def reset_game(
     admin_user: str = Depends(auth.require_admin),
     conn: sqlite3.Connection = Depends(db.get_db),
 ):
-    """Reset game state back to setup."""
+    """Reset game state back to setup and clear all teams' gameplay progress."""
     db.set_setting(conn, "game_state", "setup")
     db.set_setting(conn, "started_at", "")
-    db.log_event(conn, None, game.EVENT_GAME_RESET, None)
-    return {"status": "ok", "game_state": "setup"}
+    teams_reset = db.reset_all_teams_progress(conn)
+    invalidate_leaderboard_cache()
+    db.log_event(conn, None, game.EVENT_GAME_RESET, f"teams_reset={teams_reset}")
+    return {"status": "ok", "game_state": "setup", "teams_reset": teams_reset}
 
 
 @app.get("/api/gods/game/status")
@@ -816,6 +827,31 @@ def delete_gods_team(
         raise HTTPException(status_code=404, detail="Team not found")
     invalidate_leaderboard_cache()
     return {"status": "ok", "deleted_id": team_id}
+
+
+@app.post("/api/gods/teams/reset")
+def reset_all_teams_endpoint(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Reset progress, powerups, streaks, and completion state for all teams."""
+    teams_reset = db.reset_all_teams_progress(conn)
+    invalidate_leaderboard_cache()
+    return {"status": "ok", "teams_reset": teams_reset}
+
+
+@app.post("/api/gods/teams/{team_id}/reset")
+def reset_single_team_endpoint(
+    team_id: int,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Reset progress, powerups, streak, and completion state for a single team."""
+    success = db.reset_team_progress(conn, team_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Team not found")
+    invalidate_leaderboard_cache()
+    return {"status": "ok", "team_id": team_id}
 
 
 # --- Player Team & Device Endpoints ---
@@ -1407,6 +1443,42 @@ def get_leaderboard(
         "data": formatted,
     }
     return formatted
+
+
+@app.get("/api/board")
+def get_board(
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Retrieve public big-screen leaderboard data and game state.
+
+    Reuses the cached leaderboard function. Returns only rank, team name,
+    cleared/total, and adjusted time. No members, codes, or locations.
+    """
+    raw_state = db.get_setting(conn, "game_state") or "setup"
+    state_map = {
+        "setup": ("waiting", "Waiting"),
+        "running": ("running", "Running"),
+        "ended": ("ended", "Ended"),
+    }
+    state_key, state_label = state_map.get(raw_state, ("waiting", "Waiting"))
+
+    leaderboard = get_leaderboard(conn)
+    teams = [
+        {
+            "rank": t["rank"],
+            "name": t["name"],
+            "cleared": t["cleared"],
+            "total": t["total"],
+            "adjusted_time": t["adjusted_time"],
+        }
+        for t in leaderboard
+    ]
+
+    return {
+        "game_state": state_key,
+        "status_label": state_label,
+        "teams": teams,
+    }
 
 
 # Mount static files (must come after specific API and /gods routes)

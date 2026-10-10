@@ -795,6 +795,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (clueCard) clueCard.hidden = true;
       if (gameTabBar) gameTabBar.hidden = true;
       if (viewTeam) viewTeam.hidden = true;
+      if (finishOverlay) finishOverlay.hidden = true;
+      if (unlockOverlay) unlockOverlay.hidden = true;
       if (lobbyOverlay) lobbyOverlay.hidden = false;
       if (lobbyCountdownBanner) lobbyCountdownBanner.hidden = true;
       if (lobbyStatusBadge) {
@@ -811,6 +813,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (clueCard) clueCard.hidden = true;
         if (gameTabBar) gameTabBar.hidden = true;
         if (viewTeam) viewTeam.hidden = true;
+        if (finishOverlay) finishOverlay.hidden = true;
+        if (unlockOverlay) unlockOverlay.hidden = true;
         if (lobbyOverlay) lobbyOverlay.hidden = false;
         if (lobbyCountdownBanner) lobbyCountdownBanner.hidden = false;
         if (lobbyStatusBadge) {
@@ -870,9 +874,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (clueTargetLabel) clueTargetLabel.textContent = 'Route Complete';
       if (clueTextEl) clueTextEl.textContent = 'All checkpoints cleared! Superb run!';
       showFinishScreen();
-    } else if (state.current_clue) {
-      if (clueTargetLabel) clueTargetLabel.textContent = `Checkpoint #${cleared + 1}`;
-      if (clueTextEl) clueTextEl.textContent = state.current_clue;
+    } else {
+      if (finishOverlay) finishOverlay.hidden = true;
+      if (state.current_clue) {
+        if (clueTargetLabel) clueTargetLabel.textContent = `Checkpoint #${cleared + 1}`;
+        if (clueTextEl) clueTextEl.textContent = state.current_clue;
+      }
     }
 
     // Update Team info panel

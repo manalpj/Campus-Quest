@@ -99,6 +99,9 @@
               <button type="button" id="btn-game-reset" class="gods-btn gods-btn-secondary" disabled>
                 Reset to Setup
               </button>
+              <button type="button" id="btn-reset-teams-game-tab" class="gods-btn gods-btn-secondary">
+                Reset Teams Progress
+              </button>
             </div>
             <p id="start-disabled-reason" class="error-hint" hidden></p>
           </div>
@@ -261,9 +264,14 @@
             <span id="teams-counter-pill" class="counter-pill">0 teams</span>
             <span class="counter-hint">Auto-refreshes every 5s &bull; Highlighted when inactive &gt; 60s</span>
           </div>
-          <button type="button" id="btn-refresh-teams" class="gods-btn gods-btn-secondary gods-btn-sm">
-            Refresh Now
-          </button>
+          <div style="display: flex; gap: var(--space-8); flex-wrap: wrap;">
+            <button type="button" id="btn-reset-teams-teams-tab" class="gods-btn gods-btn-secondary gods-btn-sm">
+              Reset All Progress
+            </button>
+            <button type="button" id="btn-refresh-teams" class="gods-btn gods-btn-secondary gods-btn-sm">
+              Refresh Now
+            </button>
+          </div>
         </div>
 
         <div id="gods-teams-alert" class="gods-alert" role="alert" hidden></div>

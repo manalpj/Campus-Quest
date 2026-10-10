@@ -448,12 +448,39 @@
 **Q2: How does the configuration fallback in `config.py` prevent this failure?**  
 **A2:** By checking `if "{z}" not in _raw_tile_url:`, the backend identifies when an invalid or standard browser URL was provided in environment variables. Instead of propagating the broken URL to clients via `GET /api/config`, it automatically falls back to `"https://tile.openstreetmap.org/{z}/{x}/{y}.png"`. This makes the application resilient against common configuration mistakes during deployment or local setup.
 
+---
 
+## Task 21: Big-screen leaderboard page (/board)
 
+### 5-Line Interview Summary
+- Added `GET /board` to deliver a projector-friendly HTML page (`static/board.html`) with high contrast and enlarged typography.
+- Built `GET /api/board` as a public, read-only endpoint that reuses the cached in-memory leaderboard function.
+- Sanitized the API response to strip team codes, member names, device tokens, and coordinates, exposing only rank, name, cleared/total, and adjusted time.
+- Integrated a live game state indicator (Waiting, Running, Ended) with an auto-updating 5-second polling loop and an automatic offline error banner.
+- Added comprehensive unit tests in `tests/test_board.py` verifying HTML serving, field whitelisting, and strict absence of sensitive data.
 
+### Interview Questions & Answers
+**Q1: Why does `/api/board` reuse the cached leaderboard function instead of querying the database directly?**  
+**A1:** The main leaderboard is polled frequently by many player devices and the projector screen simultaneously. Reusing `get_leaderboard()`, which caches sorted rankings with a 1-second TTL and invalidates immediately on checkpoint unlocks, eliminates redundant database queries. `/api/board` simply projects and sanitizes this in-memory ranking, keeping database load minimal.
 
+**Q2: Why is it critical that `/api/board` completely strips team codes, member lists, and coordinates?**  
+**A2:** `/api/board` is a completely unauthenticated, public endpoint designed for public projector displays and spectators. Exposing team codes would allow spectators to hijack player devices via `/api/join`, exposing member names leaks student identities without consent, and exposing coordinates or distances would give away checkpoint locations before teams solve the clues.
 
+---
 
+## Task: Team Progress Reset & Game 2 Isolation
 
+### 5-Line Interview Summary
+- Updated `POST /api/gods/game/reset` to automatically wipe all team progress, hint history, power-ups, streaks, and completion timestamps when resetting the game back to setup.
+- Added admin endpoints `POST /api/gods/teams/reset` (for all teams) and `POST /api/gods/teams/{id}/reset` (for an individual team) protected by `require_admin`.
+- Preserved team registrations, secret join codes, member rosters, and device pairings in `teams` table so players never have to re-register their phones for Game 2.
+- Updated player device UI logic (`static/app.js`) to automatically dismiss the "Quest Completed!" modal when returning to setup state, countdown, or active route.
+- Added "Reset Teams Progress" buttons to both the Game and Teams admin tabs with native confirmation dialogs and immediate leaderboard cache invalidation.
 
+### Interview Questions & Answers
+**Q1: Why did resetting the game state to "setup" previously still show "Quest Completed!" on player phones?**  
+**A1:** Previously, `/api/gods/game/reset` only updated `game_state = 'setup'` in the `settings` table, leaving `teams.finished_at` and `progress` rows intact. When the game restarted, `/api/state` still returned `finished: true`, and the client never hid the `#finish-overlay`. Wiping `progress`, `hint_uses`, and team gameplay columns on reset—and hiding `#finish-overlay` when `!state.finished`—ensures Game 2 starts with a clean slate.
+
+**Q2: Why does resetting team progress preserve `code` and `device_hash` instead of deleting the teams?**  
+**A2:** In a live campus event, having 50 teams re-type team names, member rosters, and re-bind device cookies before Game 2 would cause huge friction and delays. By clearing only dynamic run attributes (`penalty_s`, `bonus_s`, `radar_left`, `boost_left`, `radar_until`, `boost_until`, `inside_streak`, `last_fix_*`, `finished_at`) along with `progress` and `hint_uses` rows, the paired phones remain authenticated and ready to play the next quest immediately.
 

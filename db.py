@@ -1074,5 +1074,82 @@ def delete_team(conn: sqlite3.Connection, team_id: int) -> bool:
         return True
 
 
+def reset_all_teams_progress(conn: sqlite3.Connection) -> int:
+    """Reset gameplay progress, powerups, streaks, and completion state for all teams.
+
+    Preserves team registrations, secret codes, members, and bound devices.
+    Clears all rows from progress and hint_uses.
+    Returns the count of teams whose runtime state was reset.
+    """
+    with write_tx(conn):
+        conn.execute("DELETE FROM progress")
+        conn.execute("DELETE FROM hint_uses")
+        cur = conn.execute(
+            """
+            UPDATE teams
+            SET penalty_s = 0,
+                bonus_s = 0,
+                radar_left = 0,
+                boost_left = 0,
+                radar_until = NULL,
+                boost_until = NULL,
+                inside_streak = 0,
+                last_fix_lat = NULL,
+                last_fix_lng = NULL,
+                last_fix_ts = NULL,
+                finished_at = NULL
+            """
+        )
+        count = cur.rowcount
+        log_event(
+            conn,
+            None,
+            game.EVENT_TEAMS_PROGRESS_RESET,
+            f"teams_count={count}",
+        )
+        return count
+
+
+def reset_team_progress(conn: sqlite3.Connection, team_id: int) -> bool:
+    """Reset gameplay progress, powerups, streak, and completion state for a single team.
+
+    Preserves team registration, secret code, members, and bound device.
+    Clears progress and hint_uses for this team.
+    Returns True if team was found and reset, False if not found.
+    """
+    with write_tx(conn):
+        team = get_team_by_id(conn, team_id)
+        if not team:
+            return False
+        conn.execute("DELETE FROM progress WHERE team_id = ?", (team_id,))
+        conn.execute("DELETE FROM hint_uses WHERE team_id = ?", (team_id,))
+        conn.execute(
+            """
+            UPDATE teams
+            SET penalty_s = 0,
+                bonus_s = 0,
+                radar_left = 0,
+                boost_left = 0,
+                radar_until = NULL,
+                boost_until = NULL,
+                inside_streak = 0,
+                last_fix_lat = NULL,
+                last_fix_lng = NULL,
+                last_fix_ts = NULL,
+                finished_at = NULL
+            WHERE id = ?
+            """,
+            (team_id,),
+        )
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_TEAM_RESET,
+            f"team_id={team_id} name={team['name']} code={team['code']}",
+        )
+        return True
+
+
+
 
 

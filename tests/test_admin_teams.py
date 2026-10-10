@@ -56,6 +56,14 @@ def test_admin_teams_require_authentication():
     r_del = unauth_client.delete("/api/gods/teams/1")
     assert r_del.status_code == 401
 
+    # POST /api/gods/teams/reset
+    r_rst_all = unauth_client.post("/api/gods/teams/reset")
+    assert r_rst_all.status_code == 401
+
+    # POST /api/gods/teams/1/reset
+    r_rst_one = unauth_client.post("/api/gods/teams/1/reset")
+    assert r_rst_one.status_code == 401
+
 
 def test_get_teams_list():
     """GET /api/gods/teams returns team name, members, code, device status, cleared count, and adjusted time."""
@@ -251,3 +259,127 @@ def test_delete_team():
         assert game.EVENT_TEAM_DELETED in types
     finally:
         conn.close()
+
+
+def test_reset_all_teams_progress():
+    """POST /api/gods/teams/reset resets progress, powerups, streaks, finished_at for all teams."""
+    client = get_admin_client()
+
+    r1 = client.post("/api/register", json={"name": "Team Alpha", "members": ["A1", "A2"]})
+    team1_id = r1.json()["id"]
+    r2 = client.post("/api/register", json={"name": "Team Beta", "members": ["B1", "B2"]})
+    team2_id = r2.json()["id"]
+
+    conn = db.get_connection()
+    try:
+        cp = db.create_checkpoint(conn, "CP1", 22.7, 75.8, 30.0, 1, "Clue 1", "Hint 1")
+        cp_id = cp["id"]
+        with db.write_tx(conn):
+            conn.execute(
+                "INSERT INTO progress (team_id, checkpoint_id, unlocked_at, elapsed_s, how) VALUES (?, ?, ?, ?, 'gps')",
+                (team1_id, cp_id, 50.0, 50),
+            )
+            conn.execute(
+                "INSERT INTO progress (team_id, checkpoint_id, unlocked_at, elapsed_s, how) VALUES (?, ?, ?, ?, 'gps')",
+                (team2_id, cp_id, 75.0, 75),
+            )
+            conn.execute(
+                "INSERT INTO hint_uses (team_id, checkpoint_id, used_at) VALUES (?, ?, ?)",
+                (team1_id, cp_id, 30.0),
+            )
+            conn.execute(
+                "UPDATE teams SET finished_at = 999.0, penalty_s = 180, inside_streak = 2 WHERE id = ?",
+                (team1_id,),
+            )
+            conn.execute(
+                "UPDATE teams SET finished_at = 888.0, penalty_s = 600, radar_left = 1 WHERE id = ?",
+                (team2_id,),
+            )
+    finally:
+        conn.close()
+
+    # Reset all teams
+    res = client.post("/api/gods/teams/reset")
+    assert res.status_code == 200
+    assert res.json()["status"] == "ok"
+    assert res.json()["teams_reset"] >= 2
+
+    # Verify both teams reset in database
+    conn = db.get_connection()
+    try:
+        t1 = db.get_team_by_id(conn, team1_id)
+        t2 = db.get_team_by_id(conn, team2_id)
+        assert t1["finished_at"] is None
+        assert t1["penalty_s"] == 0
+        assert t1["inside_streak"] == 0
+        assert t2["finished_at"] is None
+        assert t2["penalty_s"] == 0
+        assert t2["radar_left"] == 0
+
+        c1, _ = db.get_team_progress_counts(conn, team1_id)
+        c2, _ = db.get_team_progress_counts(conn, team2_id)
+        assert c1 == 0
+        assert c2 == 0
+
+        events = db.get_latest_events(conn, limit=5)
+        assert any(e["type"] == game.EVENT_TEAMS_PROGRESS_RESET for e in events)
+    finally:
+        conn.close()
+
+
+def test_reset_single_team_progress():
+    """POST /api/gods/teams/{id}/reset resets only the specified team's progress."""
+    client = get_admin_client()
+
+    r1 = client.post("/api/register", json={"name": "Team Solo", "members": ["S1", "S2"]})
+    team1_id = r1.json()["id"]
+    r2 = client.post("/api/register", json={"name": "Team Untouched", "members": ["U1", "U2"]})
+    team2_id = r2.json()["id"]
+
+    conn = db.get_connection()
+    try:
+        cp = db.create_checkpoint(conn, "CP Solo", 22.7, 75.8, 30.0, 1, "Clue", "Hint")
+        cp_id = cp["id"]
+        with db.write_tx(conn):
+            conn.execute(
+                "INSERT INTO progress (team_id, checkpoint_id, unlocked_at, elapsed_s, how) VALUES (?, ?, ?, ?, 'gps')",
+                (team1_id, cp_id, 40.0, 40),
+            )
+            conn.execute(
+                "INSERT INTO progress (team_id, checkpoint_id, unlocked_at, elapsed_s, how) VALUES (?, ?, ?, ?, 'gps')",
+                (team2_id, cp_id, 45.0, 45),
+            )
+            conn.execute("UPDATE teams SET finished_at = 500.0, penalty_s = 300 WHERE id = ?", (team1_id,))
+            conn.execute("UPDATE teams SET finished_at = 600.0, penalty_s = 400 WHERE id = ?", (team2_id,))
+    finally:
+        conn.close()
+
+    # Reset only team 1
+    res = client.post(f"/api/gods/teams/{team1_id}/reset")
+    assert res.status_code == 200
+    assert res.json()["team_id"] == team1_id
+
+    # 404 for non-existent team
+    res_404 = client.post("/api/gods/teams/99999/reset")
+    assert res_404.status_code == 404
+
+    # Verify team 1 reset, team 2 untouched
+    conn = db.get_connection()
+    try:
+        t1 = db.get_team_by_id(conn, team1_id)
+        t2 = db.get_team_by_id(conn, team2_id)
+        assert t1["finished_at"] is None
+        assert t1["penalty_s"] == 0
+        assert t2["finished_at"] == 600.0
+        assert t2["penalty_s"] == 400
+
+        c1, _ = db.get_team_progress_counts(conn, team1_id)
+        c2, _ = db.get_team_progress_counts(conn, team2_id)
+        assert c1 == 0
+        assert c2 == 1
+
+        events = db.get_latest_events(conn, limit=5)
+        assert any(e["type"] == game.EVENT_TEAM_RESET for e in events)
+    finally:
+        conn.close()
+

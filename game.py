@@ -18,6 +18,8 @@ EVENT_RADAR_USED = "radar_used"
 EVENT_GAME_STARTED = "game_started"
 EVENT_GAME_ENDED = "game_ended"
 EVENT_GAME_RESET = "game_reset"
+EVENT_TEAMS_PROGRESS_RESET = "teams_progress_reset"
+EVENT_TEAM_RESET = "team_reset"
 EVENT_ADMIN_LOGIN_SUCCESS = "admin_login_success"
 EVENT_ADMIN_LOGIN_FAILURE = "admin_login_failure"
 EVENT_SPEED_REJECTED = "speed_rejected"
@@ -38,6 +40,8 @@ EVENT_TYPES = frozenset({
     EVENT_GAME_STARTED,
     EVENT_GAME_ENDED,
     EVENT_GAME_RESET,
+    EVENT_TEAMS_PROGRESS_RESET,
+    EVENT_TEAM_RESET,
     EVENT_ADMIN_LOGIN_SUCCESS,
     EVENT_ADMIN_LOGIN_FAILURE,
     EVENT_SPEED_REJECTED,

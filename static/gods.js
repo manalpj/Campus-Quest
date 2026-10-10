@@ -29,6 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const teamsAlert = document.getElementById("gods-teams-alert");
   const teamsCounterPill = document.getElementById("teams-counter-pill");
   const btnRefreshTeams = document.getElementById("btn-refresh-teams");
+  const btnResetTeamsTeamsTab = document.getElementById("btn-reset-teams-teams-tab");
   const teamsTableBody = document.getElementById("teams-table-body");
 
   // Elements: Adjust Modal
@@ -69,6 +70,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnGameStart = document.getElementById("btn-game-start");
   const btnGameEnd = document.getElementById("btn-game-end");
   const btnGameReset = document.getElementById("btn-game-reset");
+  const btnResetTeamsGameTab = document.getElementById("btn-reset-teams-game-tab");
   const startDisabledReason = document.getElementById("start-disabled-reason");
   const regStatusBadge = document.getElementById("reg-status-badge");
   const regStatusDesc = document.getElementById("reg-status-desc");
@@ -491,7 +493,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function handleResetGame() {
-    const confirmed = window.confirm("Reset game back to Setup? This will allow starting a new quest.");
+    const confirmed = window.confirm("Reset game back to Setup? This will allow starting a new quest and reset teams' progress.");
     if (!confirmed) return;
 
     hideGameAlert();
@@ -506,9 +508,54 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       await loadGameStatus();
       await loadCheckpoints();
-      showGameAlert("Game reset to setup successfully.", false);
+      await loadAdminTeams();
+      showGameAlert("Game reset to setup successfully. Teams progress cleared.", false);
     } catch (err) {
       showGameAlert("Reset error: " + err.message, true);
+    }
+  }
+
+  async function handleResetAllTeamsProgress() {
+    const confirmed = window.confirm("Reset gameplay progress for all teams? This clears unlocked checkpoints, hints, power-ups, streaks, and completion times so all teams can restart cleanly.");
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch("/api/gods/teams/reset", {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to reset teams progress.");
+      }
+      const data = await res.json();
+      const msg = `Successfully reset progress for ${data.teams_reset || 0} team(s).`;
+      showGameAlert(msg, false);
+      showTeamsAlert(msg, false);
+      await loadAdminTeams();
+    } catch (err) {
+      showGameAlert("Error resetting teams progress: " + err.message, true);
+      showTeamsAlert("Error resetting teams progress: " + err.message, true);
+    }
+  }
+
+  async function handleResetSingleTeam(team) {
+    const confirmed = window.confirm(`Reset gameplay progress for team "${team.name}"? This clears their checkpoints, hints, power-ups, and completion time so they can restart.`);
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`/api/gods/teams/${team.id}/reset`, {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to reset team progress.");
+      }
+      showTeamsAlert(`Successfully reset progress for team "${team.name}".`, false);
+      await loadAdminTeams();
+    } catch (err) {
+      showTeamsAlert("Error resetting team: " + err.message, true);
     }
   }
 
@@ -1392,6 +1439,14 @@ document.addEventListener("DOMContentLoaded", () => {
       btnClearCp.addEventListener("click", () => openClearModal(t));
       tdActions.appendChild(btnClearCp);
 
+      // Reset Team Progress button
+      const btnResetTeam = document.createElement("button");
+      btnResetTeam.type = "button";
+      btnResetTeam.className = "gods-btn gods-btn-secondary gods-btn-sm";
+      btnResetTeam.textContent = "Reset Progress";
+      btnResetTeam.addEventListener("click", () => handleResetSingleTeam(t));
+      tdActions.appendChild(btnResetTeam);
+
       // Delete Team button
       const btnDelete = document.createElement("button");
       btnDelete.type = "button";
@@ -1626,6 +1681,12 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (btnGameReset) {
     btnGameReset.addEventListener("click", handleResetGame);
+  }
+  if (btnResetTeamsGameTab) {
+    btnResetTeamsGameTab.addEventListener("click", handleResetAllTeamsProgress);
+  }
+  if (btnResetTeamsTeamsTab) {
+    btnResetTeamsTeamsTab.addEventListener("click", handleResetAllTeamsProgress);
   }
   if (btnToggleTestMode) {
     btnToggleTestMode.addEventListener("click", handleToggleTestMode);

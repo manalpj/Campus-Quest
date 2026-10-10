@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Campus Quest - Live Event Leaderboard for Big-Screen and Projector Displays">
+  <title>Campus Quest - Live Leaderboard</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="board-body">
+  <main class="board-container">
+    <header class="board-header">
+      <div class="board-header-left">
+        <h1 class="board-title">Campus Quest</h1>
+        <p class="board-subtitle">Live Standings &middot; DAVV Campus</p>
+      </div>
+      <div class="board-header-right">
+        <div id="board-status-badge" class="board-badge board-badge-waiting" aria-live="polite">Waiting</div>
+        <div id="board-last-updated" class="board-last-updated" aria-live="off">--:--:--</div>
+      </div>
+    </header>
+
+    <div id="board-error-banner" class="board-error-banner" role="alert" aria-live="assertive" hidden>
+      <span aria-hidden="true">&#9888;</span>
+      <span id="board-error-text">Server unreachable. Retrying in 5 seconds...</span>
+    </div>
+
+    <section class="board-card" aria-label="Current Team Rankings">
+      <div class="board-table-wrapper">
+        <table class="board-table" aria-label="Live Team Standings">
+          <thead>
+            <tr>
+              <th scope="col" class="board-col-rank">Rank</th>
+              <th scope="col" class="board-col-team">Team</th>
+              <th scope="col" class="board-col-cleared">Checkpoints</th>
+              <th scope="col" class="board-col-time">Adjusted Time</th>
+            </tr>
+          </thead>
+          <tbody id="board-tbody">
+            <tr class="board-empty-row">
+              <td colspan="4">Loading standings...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      const statusBadge = document.getElementById('board-status-badge');
+      const lastUpdatedEl = document.getElementById('board-last-updated');
+      const errorBanner = document.getElementById('board-error-banner');
+      const tbody = document.getElementById('board-tbody');
+
+      function updateStatusBadge(stateKey, statusLabel) {
+        if (!statusBadge) return;
+        const label = statusLabel || (stateKey === 'running' ? 'Running' : (stateKey === 'ended' ? 'Ended' : 'Waiting'));
+        statusBadge.textContent = label;
+        statusBadge.className = 'board-badge';
+
+        if (stateKey === 'running') {
+          statusBadge.classList.add('board-badge-running');
+        } else if (stateKey === 'ended') {
+          statusBadge.classList.add('board-badge-ended');
+        } else {
+          statusBadge.classList.add('board-badge-waiting');
+        }
+      }
+
+      function updateTimestamp() {
+        if (!lastUpdatedEl) return;
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        lastUpdatedEl.textContent = 'Updated ' + timeStr;
+      }
+
+      function renderTeams(teams) {
+        if (!tbody) return;
+        tbody.textContent = '';
+
+        if (!Array.isArray(teams) || teams.length === 0) {
+          const tr = document.createElement('tr');
+          tr.className = 'board-empty-row';
+          const td = document.createElement('td');
+          td.colSpan = 4;
+          td.textContent = 'No teams have registered yet.';
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+          return;
+        }
+
+        teams.forEach(function (team) {
+          const tr = document.createElement('tr');
+
+          // Rank
+          const tdRank = document.createElement('td');
+          tdRank.className = 'board-cell-rank';
+          if (team.rank === 1) tdRank.classList.add('board-rank-top-1');
+          else if (team.rank === 2) tdRank.classList.add('board-rank-top-2');
+          else if (team.rank === 3) tdRank.classList.add('board-rank-top-3');
+          tdRank.textContent = '#' + (team.rank != null ? team.rank : '-');
+          tr.appendChild(tdRank);
+
+          // Team Name (safe textContent prevents XSS)
+          const tdName = document.createElement('td');
+          tdName.className = 'board-cell-team';
+          tdName.textContent = team.name || 'Unnamed Team';
+          tr.appendChild(tdName);
+
+          // Cleared / Total
+          const tdCleared = document.createElement('td');
+          tdCleared.className = 'board-cell-cleared';
+          const cleared = team.cleared != null ? team.cleared : 0;
+          const total = team.total != null ? team.total : 0;
+          tdCleared.textContent = cleared + ' / ' + total;
+          tr.appendChild(tdCleared);
+
+          // Adjusted Time
+          const tdTime = document.createElement('td');
+          tdTime.className = 'board-cell-time';
+          tdTime.textContent = team.adjusted_time || '00:00';
+          tr.appendChild(tdTime);
+
+          tbody.appendChild(tr);
+        });
+      }
+
+      async function fetchBoard() {
+        try {
+          const res = await fetch('/api/board', {
+            headers: { 'Accept': 'application/json' },
+            cache: 'no-store'
+          });
+
+          if (!res.ok) {
+            throw new Error('HTTP ' + res.status);
+          }
+
+          const data = await res.json();
+          updateStatusBadge(data.game_state, data.status_label);
+          renderTeams(data.teams);
+          updateTimestamp();
+
+          if (errorBanner) {
+            errorBanner.hidden = true;
+          }
+        } catch (err) {
+          if (errorBanner) {
+            errorBanner.hidden = false;
+          }
+        }
+      }
+
+      // Initial load
+      fetchBoard();
+
+      // Projector auto-refresh interval: 5 seconds
+      setInterval(fetchBoard, 5000);
+    })();
+  </script>
+</body>
+</html>

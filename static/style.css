@@ -2265,6 +2265,257 @@ body {
   cursor: crosshair !important;
 }
 
+/* ==========================================================================
+   Big-Screen Leaderboard (/board) Styles
+   High-contrast, projector-scale typography, 4.5:1+ contrast, no vibe-coding
+   ========================================================================== */
+
+.board-body {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-y: auto;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-stack);
+  line-height: 1.4;
+  padding: var(--space-16);
+}
+
+.board-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.board-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-16);
+  padding-bottom: var(--space-8);
+  border-bottom: 2px solid var(--border);
+}
+
+.board-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.board-subtitle {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.board-header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+
+.board-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+}
+
+.board-badge-waiting {
+  background-color: var(--attention-bg);
+  color: var(--attention);
+  border-color: #fce8b2;
+}
+
+.board-badge-running {
+  background-color: #e6f4ea;
+  color: var(--success);
+  border-color: #ceead6;
+}
+
+.board-badge-ended {
+  background-color: #f1f3f4;
+  color: var(--text-secondary);
+  border-color: var(--border);
+}
+
+.board-last-updated {
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.board-error-banner {
+  background-color: #fce8e6;
+  border: 1px solid #fad2cf;
+  color: var(--error);
+  padding: var(--space-12) var(--space-16);
+  border-radius: var(--radius);
+  font-size: 1.125rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+}
+
+.board-card {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.board-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.board-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.board-table th {
+  background-color: #f1ede4;
+  color: var(--text-secondary);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: var(--space-12) var(--space-16);
+  border-bottom: 2px solid var(--border);
+}
+
+.board-table td {
+  padding: var(--space-16);
+  font-size: 1.125rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.board-table tr:last-child td {
+  border-bottom: none;
+}
+
+.board-table tr:nth-child(even) {
+  background-color: #faf9f6;
+}
+
+.board-col-rank {
+  width: 90px;
+  text-align: center;
+}
+
+.board-cell-rank {
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 1.25rem;
+}
+
+.board-rank-top-1 {
+  color: #b06000;
+}
+
+.board-rank-top-2 {
+  color: #4a5058;
+}
+
+.board-rank-top-3 {
+  color: #795548;
+}
+
+.board-col-team {
+  font-weight: 600;
+}
+
+.board-cell-team {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.board-col-cleared {
+  width: 180px;
+  text-align: center;
+}
+
+.board-cell-cleared {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.board-col-time {
+  width: 160px;
+  text-align: right;
+}
+
+.board-cell-time {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1.1875rem;
+}
+
+.board-empty-row td {
+  text-align: center;
+  padding: var(--space-32);
+  color: var(--text-secondary);
+  font-size: 1.125rem;
+}
+
+/* Scaling up for large projector displays (992px+) */
+@media (min-width: 992px) {
+  .board-body {
+    padding: var(--space-32);
+  }
+
+  .board-title {
+    font-size: 2.5rem;
+  }
+
+  .board-subtitle {
+    font-size: 1.25rem;
+  }
+
+  .board-badge {
+    padding: 8px 24px;
+    font-size: 1.25rem;
+  }
+
+  .board-table th {
+    font-size: 1.125rem;
+    padding: var(--space-16) var(--space-24);
+  }
+
+  .board-table td {
+    padding: var(--space-24);
+    font-size: 1.5rem;
+  }
+
+  .board-cell-rank {
+    font-size: 1.75rem;
+  }
+
+  .board-cell-time {
+    font-size: 1.625rem;
+  }
+}
+
+
 
 
 
