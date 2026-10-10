@@ -11,7 +11,7 @@ from typing import Optional
 from pathlib import Path
 import sqlite3
 import time
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -217,7 +217,12 @@ def gods_page():
 
 
 @app.post("/api/gods/login")
-def gods_login(request: Request, response: Response, body: AdminLoginRequest):
+def gods_login(
+    request: Request,
+    response: Response,
+    body: AdminLoginRequest,
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
     """Authenticate administrator, rate-limit attempts, and set signed session cookie.
 
     Does not log or return the password under any circumstance.
@@ -234,11 +239,23 @@ def gods_login(request: Request, response: Response, body: AdminLoginRequest):
         )
 
     if not auth.verify_admin_credentials(body.username, body.password):
+        db.log_event(
+            conn,
+            None,
+            game.EVENT_ADMIN_LOGIN_FAILURE,
+            f"ip={client_ip} result=failed",
+        )
         raise HTTPException(
             status_code=401,
             detail="Invalid username or password",
         )
 
+    db.log_event(
+        conn,
+        None,
+        game.EVENT_ADMIN_LOGIN_SUCCESS,
+        f"ip={client_ip}",
+    )
     auth.set_admin_cookie(response, body.username)
     return {"status": "ok", "username": body.username}
 
@@ -254,6 +271,29 @@ def gods_logout(response: Response, admin_user: str = Depends(auth.require_admin
 def gods_me(admin_user: str = Depends(auth.require_admin)):
     """Return the username of the active authenticated administrator."""
     return {"username": admin_user}
+
+
+@app.get("/api/gods/events")
+def get_gods_events(
+    limit: int = Query(default=100, ge=1, le=500, description="Max number of recent events to return"),
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Retrieve recent operational and game events ordered newest first.
+
+    Guarded behind administrator authentication. Limit bounded between 1 and 500.
+    """
+    rows = db.get_latest_events(conn, limit=limit)
+    return [
+        {
+            "id": row["id"],
+            "ts": row["ts"],
+            "team_id": row["team_id"],
+            "type": row["type"],
+            "detail": row["detail"],
+        }
+        for row in rows
+    ]
 
 
 # --- Checkpoint Management Endpoints ---
@@ -374,7 +414,6 @@ def open_registration(
 ):
     """Open team registration for players."""
     db.set_setting(conn, "registration_open", "1")
-    db.log_event(conn, "registration_opened", f"Registration opened by {admin_user}")
     return {"status": "ok", "registration_open": True}
 
 
@@ -385,7 +424,6 @@ def close_registration(
 ):
     """Close team registration for players."""
     db.set_setting(conn, "registration_open", "0")
-    db.log_event(conn, "registration_closed", f"Registration closed by {admin_user}")
     return {"status": "ok", "registration_open": False}
 
 
@@ -417,8 +455,9 @@ def start_game(
     db.set_setting(conn, "started_at", str(started_at))
     db.log_event(
         conn,
-        "game_started",
-        f"Game started by {admin_user} with {config.COUNTDOWN_S}s countdown",
+        None,
+        game.EVENT_GAME_STARTED,
+        f"countdown_s={config.COUNTDOWN_S}",
     )
     return {
         "status": "ok",
@@ -440,7 +479,7 @@ def end_game(
         raise HTTPException(status_code=400, detail="Game has already ended")
 
     db.set_setting(conn, "game_state", "ended")
-    db.log_event(conn, "game_ended", f"Game ended by {admin_user}")
+    db.log_event(conn, None, game.EVENT_GAME_ENDED, None)
     return {"status": "ok", "game_state": "ended"}
 
 

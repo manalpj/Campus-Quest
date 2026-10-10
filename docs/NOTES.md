@@ -231,3 +231,21 @@
 
 **Q2: What happens when an organizer clicks "Release device", and how does that prevent device hijacking?**  
 **A2:** Releasing a device executes `UPDATE teams SET device_hash = NULL` inside an atomic `BEGIN IMMEDIATE` transaction and logs the organizer's action. The existing phone's cookie token immediately fails verification on its next request because its hash no longer matches SQLite. The team can then enter their secret team code (`/api/join`) on a replacement phone, which binds a newly generated token, ensuring exactly one active device per team at all times.
+
+---
+
+## Task 14: Event logging (the events table and log_event helper)
+
+### 5-Line Interview Summary
+- Implemented `db.log_event(conn, team_id, type, detail)` storing high-resolution server timestamps and allowing `NULL` for `team_id`.
+- Defined nine canonical event constants in `game.py` covering registrations, device bindings, unlocks, power-ups, game lifecycle, and admin logins.
+- Architected `log_event` to execute safely both inside existing `write_tx` transactions (atomic with progress unlocks) and as standalone writes.
+- Secured sensitive credentials by logging only client IP and result on failed admin logins, never recording passwords, usernames, tokens, or cookies.
+- Added `GET /api/gods/events` protected by `require_admin` to serve the latest audit events in reverse chronological order with bounded pagination.
+
+### Interview Questions & Answers
+**Q1: Why does `log_event` check `conn.in_transaction` before executing, rather than always wrapping its query in `with write_tx(conn):`?**  
+**A1:** In SQLite with autocommit (`isolation_level=None`), attempting `BEGIN IMMEDIATE` while already in an open transaction raises `sqlite3.OperationalError: cannot start a transaction within a transaction`. Checking `conn.in_transaction` allows `log_event` to participate in the caller's existing write transaction (such as checkpoint unlock or team creation) atomically, while still safely acquiring its own write transaction when called independently.
+
+**Q2: Why do failed admin logins log only the client IP and result, rather than including the attempted username?**  
+**A2:** Users frequently mistype and accidentally enter their password into the username input field. Logging attempted usernames on failed logins is a known vulnerability that exposes actual passwords in audit logs. Recording only the client IP and failure status provides the necessary security telemetry for intrusion detection without risking credential leakage.

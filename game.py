@@ -9,6 +9,29 @@ from typing import Tuple
 
 EARTH_RADIUS_M = 6_371_000.0
 
+# Event type constants for audit logging
+EVENT_TEAM_REGISTERED = "team_registered"
+EVENT_DEVICE_BOUND = "device_bound"
+EVENT_CHECKPOINT_UNLOCKED = "checkpoint_unlocked"
+EVENT_HINT_USED = "hint_used"
+EVENT_RADAR_USED = "radar_used"
+EVENT_GAME_STARTED = "game_started"
+EVENT_GAME_ENDED = "game_ended"
+EVENT_ADMIN_LOGIN_SUCCESS = "admin_login_success"
+EVENT_ADMIN_LOGIN_FAILURE = "admin_login_failure"
+
+EVENT_TYPES = frozenset({
+    EVENT_TEAM_REGISTERED,
+    EVENT_DEVICE_BOUND,
+    EVENT_CHECKPOINT_UNLOCKED,
+    EVENT_HINT_USED,
+    EVENT_RADAR_USED,
+    EVENT_GAME_STARTED,
+    EVENT_GAME_ENDED,
+    EVENT_ADMIN_LOGIN_SUCCESS,
+    EVENT_ADMIN_LOGIN_FAILURE,
+})
+
 
 def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     """Calculate great-circle distance in metres between two GPS coordinates.

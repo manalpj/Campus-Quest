@@ -5,11 +5,13 @@ All raw SQL statements are isolated here. No game rules live in this module.
 
 from contextlib import contextmanager
 from pathlib import Path
+import json
 import sqlite3
 import time
-from typing import Generator, Optional
+from typing import Generator, Optional, Union
 
 import config
+import game
 
 TABLE_STATEMENTS = [
     """
@@ -330,19 +332,52 @@ def get_checkpoint_count(conn: sqlite3.Connection) -> int:
 
 def log_event(
     conn: sqlite3.Connection,
-    event_type: str,
-    detail: Optional[str] = None,
-    team_id: Optional[int] = None,
+    team_id: Optional[int],
+    type: str,
+    detail: Optional[Union[str, dict, list]] = None,
 ) -> None:
     """Record an operational or game audit event into the events table.
 
-    Runs inside a write_tx (BEGIN IMMEDIATE) transaction.
+    Stores server time. If detail is a dict or list, serializes it to JSON string.
+    Executes directly if called within an existing transaction, or wraps in write_tx
+    if called independently.
     """
-    with write_tx(conn):
+    ts = time.time()
+    if isinstance(detail, (dict, list)):
+        detail_val = json.dumps(detail)
+    elif detail is not None:
+        detail_val = str(detail)
+    else:
+        detail_val = None
+
+    if conn.in_transaction:
         conn.execute(
             "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, ?, ?)",
-            (time.time(), team_id, event_type, detail),
+            (ts, team_id, type, detail_val),
         )
+    else:
+        with write_tx(conn):
+            conn.execute(
+                "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, ?, ?)",
+                (ts, team_id, type, detail_val),
+            )
+
+
+def get_latest_events(conn: sqlite3.Connection, limit: int = 100) -> list[sqlite3.Row]:
+    """Retrieve the latest audit events ordered newest first.
+
+    Guaranteed parameterised query. Limit clamped to safe range (1-500).
+    """
+    safe_limit = max(1, min(limit, 500))
+    return conn.execute(
+        """
+        SELECT id, ts, team_id, type, detail
+        FROM events
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (safe_limit,),
+    ).fetchall()
 
 
 def get_team_by_code(conn: sqlite3.Connection, code: str) -> Optional[sqlite3.Row]:
@@ -405,9 +440,11 @@ def create_team(
                     (name, code, members_json, token_hash, now),
                 )
                 team_id = cursor.lastrowid
-                conn.execute(
-                    "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'team_registered', ?)",
-                    (now, team_id, f"Team {name} registered with code {code}"),
+                log_event(
+                    conn,
+                    team_id,
+                    game.EVENT_TEAM_REGISTERED,
+                    f"team_id={team_id}",
                 )
                 row = get_team_by_id(conn, team_id)
                 assert row is not None
@@ -424,17 +461,17 @@ def bind_team_device(conn: sqlite3.Connection, team_id: int, device_hash: str) -
 
     Runs within write_tx (BEGIN IMMEDIATE).
     """
-    import time
-
     with write_tx(conn):
         now = time.time()
         conn.execute(
             "UPDATE teams SET device_hash = ?, last_seen = ? WHERE id = ?",
             (device_hash, now, team_id),
         )
-        conn.execute(
-            "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'device_bound', 'Device bound to team')",
-            (now, team_id),
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_DEVICE_BOUND,
+            f"team_id={team_id}",
         )
 
 
@@ -560,13 +597,6 @@ def unlock_checkpoint(
                 """,
                 (unlocked_at, lat, lng, unlocked_at, radar_inc, boost_inc, unlocked_at, team_id),
             )
-            conn.execute(
-                """
-                INSERT INTO events (ts, team_id, type, detail)
-                VALUES (?, ?, 'team_finished', 'Team completed all checkpoints')
-                """,
-                (unlocked_at, team_id),
-            )
         else:
             conn.execute(
                 """
@@ -578,22 +608,12 @@ def unlock_checkpoint(
                 (unlocked_at, lat, lng, unlocked_at, radar_inc, boost_inc, team_id),
             )
 
-        conn.execute(
-            """
-            INSERT INTO events (ts, team_id, type, detail)
-            VALUES (?, ?, 'checkpoint_unlocked', ?)
-            """,
-            (unlocked_at, team_id, f"Unlocked checkpoint {checkpoint_id} (elapsed {elapsed_s}s)"),
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_CHECKPOINT_UNLOCKED,
+            f"checkpoint_id={checkpoint_id} elapsed_s={elapsed_s}",
         )
-
-        if awarded_powerup:
-            conn.execute(
-                """
-                INSERT INTO events (ts, team_id, type, detail)
-                VALUES (?, ?, 'powerup_awarded', ?)
-                """,
-                (unlocked_at, team_id, f"Awarded {awarded_powerup} for clearing checkpoint {checkpoint_id}"),
-            )
 
         return True
 
@@ -643,9 +663,11 @@ def use_hint(
         )
         new_penalty = current_penalty + penalty_s
 
-        conn.execute(
-            "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'powerup_hint', ?)",
-            (now, team_id, f"Used hint for checkpoint {checkpoint_id} (+{penalty_s // 60}m)"),
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_HINT_USED,
+            f"checkpoint_id={checkpoint_id} penalty_s={penalty_s}",
         )
         return True, hint_text, new_penalty
 
@@ -678,9 +700,11 @@ def use_radar(
             "UPDATE teams SET radar_left = ?, radar_until = ? WHERE id = ?",
             (remaining, new_until, team_id),
         )
-        conn.execute(
-            "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'powerup_radar', ?)",
-            (now, team_id, f"Activated radar for {duration_s}s"),
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_RADAR_USED,
+            f"duration_s={duration_s}",
         )
         return True, new_until, remaining
 
@@ -696,7 +720,7 @@ def use_boost(
     Runs within write_tx (BEGIN IMMEDIATE).
     Checks if boost_left > 0. If 0, returns (False, current_boost_until, 0).
     Otherwise decrements boost_left, sets boost_until = now + duration_s,
-    logs to events, and returns (True, boost_until, remaining_boost).
+    and returns (True, boost_until, remaining_boost).
     """
     with write_tx(conn):
         team = conn.execute(
@@ -712,10 +736,6 @@ def use_boost(
         conn.execute(
             "UPDATE teams SET boost_left = ?, boost_until = ? WHERE id = ?",
             (remaining, new_until, team_id),
-        )
-        conn.execute(
-            "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'powerup_boost', ?)",
-            (now, team_id, f"Activated radius boost for {duration_s}s"),
         )
         return True, new_until, remaining
 
