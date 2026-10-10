@@ -20,8 +20,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Elements: Tabs
   const tabBtnGame = document.getElementById("tab-btn-game");
   const tabBtnCheckpoints = document.getElementById("tab-btn-checkpoints");
+  const tabBtnTeams = document.getElementById("tab-btn-teams");
   const tabPanelGame = document.getElementById("tab-panel-game");
   const tabPanelCheckpoints = document.getElementById("tab-panel-checkpoints");
+  const tabPanelTeams = document.getElementById("tab-panel-teams");
 
   // Elements: Game Tab
   const gameAlert = document.getElementById("gods-game-alert");
@@ -61,6 +63,31 @@ document.addEventListener("DOMContentLoaded", () => {
   const cpFormCancelBtn = document.getElementById("cp-form-cancel-btn");
   const btnAddCheckpoint = document.getElementById("btn-add-checkpoint");
   const btnAddCheckpointList = document.getElementById("btn-add-checkpoint-list");
+
+  // Elements: Teams Tab
+  const teamsAlert = document.getElementById("gods-teams-alert");
+  const teamsCountTotal = document.getElementById("teams-count-total");
+  const teamsCountActive = document.getElementById("teams-count-active");
+  const teamsCountFinished = document.getElementById("teams-count-finished");
+  const btnRefreshTeams = document.getElementById("btn-refresh-teams");
+  const teamsCardsList = document.getElementById("teams-cards-list");
+  const teamsEmptyNotice = document.getElementById("teams-empty-notice");
+
+  // Elements: Action Modals
+  const forceClearModal = document.getElementById("force-clear-modal");
+  const forceClearForm = document.getElementById("force-clear-form");
+  const forceClearTeamId = document.getElementById("force-clear-team-id");
+  const forceClearReason = document.getElementById("force-clear-reason");
+  const forceClearAlert = document.getElementById("force-clear-alert");
+  const btnCancelForceClear = document.getElementById("btn-cancel-force-clear");
+
+  const adjustTimeModal = document.getElementById("adjust-time-modal");
+  const adjustTimeForm = document.getElementById("adjust-time-form");
+  const adjustTimeTeamId = document.getElementById("adjust-time-team-id");
+  const adjustTimeMinutes = document.getElementById("adjust-time-minutes");
+  const adjustTimeReason = document.getElementById("adjust-time-reason");
+  const adjustTimeAlert = document.getElementById("adjust-time-alert");
+  const btnCancelAdjustTime = document.getElementById("btn-cancel-adjust-time");
 
   // State
   let mapInstance = null;
@@ -124,28 +151,50 @@ document.addEventListener("DOMContentLoaded", () => {
     gameAlert.hidden = true;
   }
 
+  function showTeamsAlert(message, isError = true) {
+    if (!teamsAlert) return;
+    teamsAlert.textContent = message;
+    teamsAlert.hidden = false;
+    teamsAlert.className = isError ? "gods-alert gods-alert-error" : "gods-alert gods-alert-success";
+  }
+
+  function hideTeamsAlert() {
+    if (!teamsAlert) return;
+    teamsAlert.textContent = "";
+    teamsAlert.hidden = true;
+  }
+
   function switchTab(tabName) {
     hideGameAlert();
     hideGlobalAlert();
+    hideTeamsAlert();
 
     const isGame = tabName === "game";
+    const isCp = tabName === "checkpoints";
+    const isTeams = tabName === "teams";
+
     if (tabBtnGame) {
       tabBtnGame.classList.toggle("active", isGame);
       tabBtnGame.setAttribute("aria-selected", isGame ? "true" : "false");
     }
     if (tabBtnCheckpoints) {
-      tabBtnCheckpoints.classList.toggle("active", !isGame);
-      tabBtnCheckpoints.setAttribute("aria-selected", !isGame ? "true" : "false");
+      tabBtnCheckpoints.classList.toggle("active", isCp);
+      tabBtnCheckpoints.setAttribute("aria-selected", isCp ? "true" : "false");
     }
-    if (tabPanelGame) {
-      tabPanelGame.hidden = !isGame;
-    }
-    if (tabPanelCheckpoints) {
-      tabPanelCheckpoints.hidden = isGame;
+    if (tabBtnTeams) {
+      tabBtnTeams.classList.toggle("active", isTeams);
+      tabBtnTeams.setAttribute("aria-selected", isTeams ? "true" : "false");
     }
 
-    if (!isGame && mapInstance) {
+    if (tabPanelGame) tabPanelGame.hidden = !isGame;
+    if (tabPanelCheckpoints) tabPanelCheckpoints.hidden = !isCp;
+    if (tabPanelTeams) tabPanelTeams.hidden = !isTeams;
+
+    if (isCp && mapInstance) {
       setTimeout(() => mapInstance.invalidateSize(), 120);
+    }
+    if (isTeams) {
+      loadTeams();
     }
   }
 
@@ -469,6 +518,7 @@ document.addEventListener("DOMContentLoaded", () => {
       await Promise.all([
         loadGameStatus(),
         loadCheckpoints(),
+        loadTeams(),
       ]);
       setTimeout(() => {
         if (mapInstance) mapInstance.invalidateSize();
@@ -1042,12 +1092,312 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/'/g, "&#39;");
   }
 
+  // --- Teams Management Functions ---
+
+  function formatRelativeTime(ts) {
+    if (!ts) return "Never";
+    const diffSec = Math.max(0, Math.floor((Date.now() - (ts * 1000)) / 1000));
+    if (diffSec < 15) return "Just now";
+    if (diffSec < 60) return `${diffSec}s ago`;
+    const min = Math.floor(diffSec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hrs = Math.floor(min / 60);
+    return `${hrs}h ago`;
+  }
+
+  async function loadTeams() {
+    hideTeamsAlert();
+    try {
+      const res = await fetch("/api/gods/teams", {
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        throw new Error("Failed to load teams");
+      }
+      const teams = await res.json();
+      renderTeams(teams);
+    } catch (err) {
+      showTeamsAlert("Error loading teams: " + err.message, true);
+    }
+  }
+
+  function renderTeams(teams) {
+    if (!teamsCardsList) return;
+    teamsCardsList.innerHTML = "";
+
+    const total = teams.length;
+    const active = teams.filter(t => t.device_bound).length;
+    const finished = teams.filter(t => t.finished).length;
+
+    if (teamsCountTotal) teamsCountTotal.textContent = `${total} team${total === 1 ? "" : "s"} registered`;
+    if (teamsCountActive) teamsCountActive.textContent = `${active} active device${active === 1 ? "" : "s"}`;
+    if (teamsCountFinished) teamsCountFinished.textContent = `${finished} finished`;
+
+    if (teams.length === 0) {
+      if (teamsEmptyNotice) teamsEmptyNotice.hidden = false;
+      return;
+    }
+    if (teamsEmptyNotice) teamsEmptyNotice.hidden = true;
+
+    teams.forEach(team => {
+      const card = document.createElement("div");
+      card.className = "gods-team-card";
+      card.setAttribute("role", "listitem");
+
+      const membersText = Array.isArray(team.members) ? team.members.join(", ") : String(team.members);
+      const deviceBadgeClass = team.device_bound ? "badge-open" : "badge-setup";
+      const deviceBadgeText = team.device_bound ? "Device Bound" : "No Device Bound";
+      const nextCpText = team.finished
+        ? "Completed all checkpoints"
+        : (team.next_checkpoint ? `#${team.next_checkpoint.position} ${escapeHtml(team.next_checkpoint.name)}` : "None");
+
+      card.innerHTML = `
+        <div class="gods-team-header">
+          <div class="gods-team-title-wrap">
+            <h3 class="gods-team-name">${escapeHtml(team.name)}</h3>
+            <span class="gods-team-code">Code: ${escapeHtml(team.code)}</span>
+          </div>
+          <span class="badge-status ${deviceBadgeClass}">${deviceBadgeText}</span>
+        </div>
+
+        <div class="gods-team-meta-row">
+          <div class="gods-team-meta-item">
+            <span class="gods-team-meta-label">Progress:</span>
+            <span class="gods-team-meta-value"><strong>${team.cleared}</strong> / ${team.total} cleared</span>
+          </div>
+          <div class="gods-team-meta-item">
+            <span class="gods-team-meta-label">Target:</span>
+            <span class="gods-team-meta-value">${nextCpText}</span>
+          </div>
+          <div class="gods-team-meta-item">
+            <span class="gods-team-meta-label">Adjusted Time:</span>
+            <span class="gods-team-meta-value">${team.adjusted_time} ${team.penalty_s ? `(+${Math.round(team.penalty_s / 60)}m pen)` : ""}</span>
+          </div>
+          <div class="gods-team-meta-item">
+            <span class="gods-team-meta-label">Last Seen:</span>
+            <span class="gods-team-meta-value">${formatRelativeTime(team.last_seen)}</span>
+          </div>
+          <div class="gods-team-members">
+            <strong>Members:</strong> ${escapeHtml(membersText)}
+          </div>
+        </div>
+
+        <div class="gods-team-actions">
+          <button type="button" class="gods-btn-sm btn-release-device" data-id="${team.id}" ${team.device_bound ? "" : "disabled"}>
+            Release Device
+          </button>
+          <button type="button" class="gods-btn-sm btn-force-clear" data-id="${team.id}" data-name="${escapeHtml(team.name)}" ${team.finished ? "disabled" : ""}>
+            Force Clear
+          </button>
+          <button type="button" class="gods-btn-sm btn-adjust-time" data-id="${team.id}" data-name="${escapeHtml(team.name)}">
+            Adjust Time
+          </button>
+          <button type="button" class="gods-btn-sm gods-btn-danger btn-delete-team" data-id="${team.id}" data-name="${escapeHtml(team.name)}">
+            Delete
+          </button>
+        </div>
+      `;
+
+      // Wire action buttons
+      const btnRelease = card.querySelector(".btn-release-device");
+      if (btnRelease && team.device_bound) {
+        btnRelease.addEventListener("click", () => handleReleaseDevice(team));
+      }
+
+      const btnForce = card.querySelector(".btn-force-clear");
+      if (btnForce && !team.finished) {
+        btnForce.addEventListener("click", () => openForceClearModal(team));
+      }
+
+      const btnAdjust = card.querySelector(".btn-adjust-time");
+      if (btnAdjust) {
+        btnAdjust.addEventListener("click", () => openAdjustTimeModal(team));
+      }
+
+      const btnDel = card.querySelector(".btn-delete-team");
+      if (btnDel) {
+        btnDel.addEventListener("click", () => handleDeleteTeam(team));
+      }
+
+      teamsCardsList.appendChild(card);
+    });
+  }
+
+  async function handleReleaseDevice(team) {
+    const confirmed = window.confirm(`Release bound device for team "${team.name}" (${team.code})?\n\nThis will allow them to pair a replacement phone.`);
+    if (!confirmed) return;
+    hideTeamsAlert();
+
+    try {
+      const res = await fetch(`/api/gods/teams/${team.id}/release-device`, {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to release device.");
+      }
+      showTeamsAlert(`Device successfully released for team "${team.name}".`, false);
+      await loadTeams();
+    } catch (err) {
+      showTeamsAlert("Release device error: " + err.message, true);
+    }
+  }
+
+  function openForceClearModal(team) {
+    if (!forceClearModal) return;
+    if (forceClearTeamId) forceClearTeamId.value = team.id;
+    if (forceClearReason) forceClearReason.value = "";
+    if (forceClearAlert) {
+      forceClearAlert.textContent = "";
+      forceClearAlert.hidden = true;
+    }
+    const subtitle = document.getElementById("force-clear-subtitle");
+    if (subtitle) {
+      subtitle.textContent = `Advance team "${team.name}" past their current checkpoint without awarding power-ups.`;
+    }
+    forceClearModal.hidden = false;
+  }
+
+  function closeForceClearModal() {
+    if (forceClearModal) forceClearModal.hidden = true;
+  }
+
+  async function handleForceClearSubmit(e) {
+    e.preventDefault();
+    const teamId = forceClearTeamId ? forceClearTeamId.value : "";
+    const reason = forceClearReason ? forceClearReason.value.trim() : "";
+
+    if (!reason) {
+      if (forceClearAlert) {
+        forceClearAlert.textContent = "Please provide an explanation for the audit log.";
+        forceClearAlert.hidden = false;
+      }
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/gods/teams/${teamId}/force-clear`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({ reason }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to force clear checkpoint.");
+      }
+      closeForceClearModal();
+      showTeamsAlert("Checkpoint force-cleared successfully.", false);
+      await loadTeams();
+    } catch (err) {
+      if (forceClearAlert) {
+        forceClearAlert.textContent = err.message;
+        forceClearAlert.hidden = false;
+      }
+    }
+  }
+
+  function openAdjustTimeModal(team) {
+    if (!adjustTimeModal) return;
+    if (adjustTimeTeamId) adjustTimeTeamId.value = team.id;
+    if (adjustTimeMinutes) adjustTimeMinutes.value = "";
+    if (adjustTimeReason) adjustTimeReason.value = "";
+    if (adjustTimeAlert) {
+      adjustTimeAlert.textContent = "";
+      adjustTimeAlert.hidden = true;
+    }
+    const subtitle = document.getElementById("adjust-time-subtitle");
+    if (subtitle) {
+      subtitle.textContent = `Adjust leaderboard time for team "${team.name}". Current adjusted: ${team.adjusted_time}`;
+    }
+    adjustTimeModal.hidden = false;
+  }
+
+  function closeAdjustTimeModal() {
+    if (adjustTimeModal) adjustTimeModal.hidden = true;
+  }
+
+  async function handleAdjustTimeSubmit(e) {
+    e.preventDefault();
+    const teamId = adjustTimeTeamId ? adjustTimeTeamId.value : "";
+    const minutes = parseInt(adjustTimeMinutes ? adjustTimeMinutes.value : "0", 10);
+    const reason = adjustTimeReason ? adjustTimeReason.value.trim() : "";
+
+    if (isNaN(minutes) || minutes === 0) {
+      if (adjustTimeAlert) {
+        adjustTimeAlert.textContent = "Please specify a non-zero number of minutes (e.g. +5 or -2).";
+        adjustTimeAlert.hidden = false;
+      }
+      return;
+    }
+    if (!reason) {
+      if (adjustTimeAlert) {
+        adjustTimeAlert.textContent = "Please provide a reason for the audit log.";
+        adjustTimeAlert.hidden = false;
+      }
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/gods/teams/${teamId}/adjust-time`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({ minutes, reason }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to adjust time.");
+      }
+      closeAdjustTimeModal();
+      showTeamsAlert(`Time adjustment of ${minutes > 0 ? "+" : ""}${minutes}m applied successfully.`, false);
+      await loadTeams();
+    } catch (err) {
+      if (adjustTimeAlert) {
+        adjustTimeAlert.textContent = err.message;
+        adjustTimeAlert.hidden = false;
+      }
+    }
+  }
+
+  async function handleDeleteTeam(team) {
+    const confirmed = window.confirm(`Are you sure you want to delete team "${team.name}" (${team.code})?\n\nThis will remove all progress and cannot be undone.`);
+    if (!confirmed) return;
+    hideTeamsAlert();
+
+    try {
+      const res = await fetch(`/api/gods/teams/${team.id}`, {
+        method: "DELETE",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to delete team.");
+      }
+      showTeamsAlert(`Team "${team.name}" deleted successfully.`, false);
+      await loadTeams();
+    } catch (err) {
+      showTeamsAlert("Delete team error: " + err.message, true);
+    }
+  }
+
   // --- Attach Tab & Action Event Listeners ---
   if (tabBtnGame) {
     tabBtnGame.addEventListener("click", () => switchTab("game"));
   }
   if (tabBtnCheckpoints) {
     tabBtnCheckpoints.addEventListener("click", () => switchTab("checkpoints"));
+  }
+  if (tabBtnTeams) {
+    tabBtnTeams.addEventListener("click", () => switchTab("teams"));
+  }
+  if (btnRefreshTeams) {
+    btnRefreshTeams.addEventListener("click", loadTeams);
   }
   if (btnSwitchToCheckpoints) {
     btnSwitchToCheckpoints.addEventListener("click", () => switchTab("checkpoints"));
@@ -1060,6 +1410,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (btnGameEnd) {
     btnGameEnd.addEventListener("click", handleEndGame);
+  }
+
+  // Attach modal listeners
+  if (forceClearForm) {
+    forceClearForm.addEventListener("submit", handleForceClearSubmit);
+  }
+  if (btnCancelForceClear) {
+    btnCancelForceClear.addEventListener("click", closeForceClearModal);
+  }
+  if (adjustTimeForm) {
+    adjustTimeForm.addEventListener("submit", handleAdjustTimeSubmit);
+  }
+  if (btnCancelAdjustTime) {
+    btnCancelAdjustTime.addEventListener("click", closeAdjustTimeModal);
   }
 
   // Check session on page load

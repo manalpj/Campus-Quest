@@ -213,3 +213,21 @@
 
 **Q2: Why does using a hint add time to `penalty_s` rather than deducting a point score, and why is `hint_uses` protected by a unique constraint?**  
 **A2:** Campus Quest uses time as its single currency (`adjusted_time = elapsed_at_last_unlock + penalties - bonuses`), so taking a hint directly costs +3 minutes (180 s) on the team's leaderboard time. The `UNIQUE(team_id, checkpoint_id)` constraint in `hint_uses` and atomic check in `write_tx` guarantee idempotency: if a team re-requests or reloads the page, they receive the hint text without ever being charged a second penalty for the same checkpoint.
+
+---
+
+## Task 14: Admin team management and stuck-team recovery (/gods)
+
+### 5-Line Interview Summary
+- Added the "Teams" management dashboard to `/gods` behind `require_admin`, enabling organizers to inspect registered teams, members, device bindings, and progress in real time.
+- Implemented `POST /api/gods/teams/{id}/release-device` to clear `device_hash` under `write_tx(BEGIN IMMEDIATE)`, letting teams re-pair when a phone dies or gets lost.
+- Built `POST /api/gods/teams/{id}/force-clear` with required audit reasons to advance stuck teams without awarding power-ups, immediately invalidating the cached leaderboard.
+- Created `POST /api/gods/teams/{id}/adjust-time` and `DELETE /api/gods/teams/{id}` for organizer penalties, credits, or test team removals, logging all operational actions to `events`.
+- Delivered responsive mobile-first UI with status chips, relative last-seen timers, confirmation dialogs, accessible action modals, and automated tests for all endpoints.
+
+### Interview Questions & Answers
+**Q1: Why does admin force-clearing a checkpoint record `how = 'admin'` and award no power-ups, unlike a normal GPS unlock?**  
+**A1:** Campus Quest tracks integrity in the `progress` table: recording `how = 'admin'` maintains transparency for the final results. When an organizer force-clears a checkpoint (for example due to GPS hardware failure or an inaccessible zone), it unstucks the team, but granting power-ups (Radar or Radius Boost) would give an unearned competitive advantage over teams that reached the physical coordinates.
+
+**Q2: What happens when an organizer clicks "Release device", and how does that prevent device hijacking?**  
+**A2:** Releasing a device executes `UPDATE teams SET device_hash = NULL` inside an atomic `BEGIN IMMEDIATE` transaction and logs the organizer's action. The existing phone's cookie token immediately fails verification on its next request because its hash no longer matches SQLite. The team can then enter their secret team code (`/api/join`) on a replacement phone, which binds a newly generated token, ensuring exactly one active device per team at all times.

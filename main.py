@@ -148,6 +148,35 @@ class CheckpointUpdateRequest(BaseModel):
         return self
 
 
+class ForceClearRequest(BaseModel):
+    """Validated input model for administrator force-clearing a checkpoint."""
+
+    reason: str = Field(..., min_length=1, max_length=200, description="Reason for force-clearing")
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, v: str) -> str:
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("Reason cannot be blank")
+        return trimmed
+
+
+class AdjustTimeRequest(BaseModel):
+    """Validated input model for administrator adjusting team time."""
+
+    minutes: int = Field(..., ge=-120, le=120, description="Minutes to add or subtract (-120 to +120)")
+    reason: str = Field(..., min_length=1, max_length=200, description="Reason for time adjustment")
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, v: str) -> str:
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("Reason cannot be blank")
+        return trimmed
+
+
 @app.middleware("http")
 async def security_and_header_middleware(request: Request, call_next):
     """Enforce payload size boundaries and security headers."""
@@ -467,6 +496,149 @@ def get_gods_game_status(
         "started_at_ms": int(started_at * 1000) if started_at else None,
         "countdown_s": config.COUNTDOWN_S,
     }
+
+
+# --- Administrative Team Management Endpoints ---
+
+
+@app.get("/api/gods/teams")
+def list_gods_teams(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Retrieve all teams with status, progress, time metrics, and current target checkpoint."""
+    rows = db.get_admin_teams(conn)
+    result = []
+    for r in rows:
+        adj_s = game.adjusted_time(
+            elapsed_at_last_unlock_s=r["elapsed_at_last_unlock_s"],
+            penalty_s=r["penalty_s"],
+            bonus_s=r["bonus_s"],
+        )
+        try:
+            members_list = json.loads(r["members"]) if isinstance(r["members"], str) else r["members"]
+        except Exception:
+            members_list = [r["members"]]
+
+        next_cp = None
+        if not r["finished_at"]:
+            cp_row = db.get_team_next_checkpoint(conn, r["id"])
+            if cp_row:
+                next_cp = {
+                    "id": cp_row["id"],
+                    "name": cp_row["name"],
+                    "position": cp_row["position"],
+                }
+
+        result.append({
+            "id": r["id"],
+            "name": r["name"],
+            "code": r["code"],
+            "members": members_list,
+            "device_bound": bool(r["device_bound"]),
+            "last_seen": r["last_seen"],
+            "penalty_s": r["penalty_s"],
+            "bonus_s": r["bonus_s"],
+            "cleared": r["cleared"],
+            "total": r["total"],
+            "adjusted_time_s": adj_s,
+            "adjusted_time": f"{adj_s // 60:02d}:{adj_s % 60:02d}",
+            "finished": bool(r["finished_at"]),
+            "radar_left": r["radar_left"],
+            "boost_left": r["boost_left"],
+            "next_checkpoint": next_cp,
+        })
+    return result
+
+
+@app.post("/api/gods/teams/{team_id}/release-device")
+def release_team_device_endpoint(
+    team_id: int,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Release bound device for a team so they can pair a new phone."""
+    now = time.time()
+    success = db.release_team_device(conn, team_id, admin_user, now)
+    if not success:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return {"status": "ok", "team_id": team_id}
+
+
+@app.post("/api/gods/teams/{team_id}/force-clear")
+def force_clear_team_checkpoint(
+    team_id: int,
+    body: ForceClearRequest,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Force-clear the team's current checkpoint with an administrative reason."""
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    if game_state != "running":
+        raise HTTPException(status_code=400, detail="Cannot force-clear: game is not currently running")
+
+    started_at_str = db.get_setting(conn, "started_at")
+    if not started_at_str:
+        raise HTTPException(status_code=400, detail="Game start time is not recorded")
+    started_at = float(started_at_str)
+
+    now = time.time()
+    result = db.admin_force_clear_checkpoint(
+        conn=conn,
+        team_id=team_id,
+        reason=body.reason,
+        admin_user=admin_user,
+        now=now,
+        started_at=started_at,
+    )
+    if not result:
+        raise HTTPException(
+            status_code=400,
+            detail="Team has already completed all checkpoints or team does not exist",
+        )
+
+    invalidate_leaderboard_cache()
+    return {"status": "ok", "cleared": result}
+
+
+@app.post("/api/gods/teams/{team_id}/adjust-time")
+def adjust_team_time_endpoint(
+    team_id: int,
+    body: AdjustTimeRequest,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Adjust team's penalty minutes with an administrative reason."""
+    now = time.time()
+    new_penalty = db.adjust_team_time(
+        conn=conn,
+        team_id=team_id,
+        delta_minutes=body.minutes,
+        reason=body.reason,
+        admin_user=admin_user,
+        now=now,
+    )
+    if new_penalty is None:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    invalidate_leaderboard_cache()
+    return {"status": "ok", "new_penalty_s": new_penalty, "adjusted_minutes": body.minutes}
+
+
+@app.delete("/api/gods/teams/{team_id}")
+def delete_team_endpoint(
+    team_id: int,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Delete a team and its associated progress and hints."""
+    now = time.time()
+    success = db.delete_team(conn, team_id, admin_user, now)
+    if not success:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    invalidate_leaderboard_cache()
+    return {"status": "ok", "deleted_id": team_id}
 
 
 # --- Player Team & Device Endpoints ---
