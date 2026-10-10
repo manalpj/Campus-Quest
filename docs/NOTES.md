@@ -177,3 +177,21 @@
 
 **Q2: Why must `GET /api/state` strictly omit the coordinates and radius of the next target checkpoint?**  
 **A2:** Client-side web state cannot be trusted. If the backend returned target coordinates or geofence radii in API payloads, any player opening the browser DevTools network tab could instantly plot the exact physical coordinates on a map, defeating the clue-solving purpose of the hunt. The server validates geofencing internally and only reveals a checkpoint's coordinates and story after it has already been legitimately unlocked.
+
+---
+
+## Task 12: Ranking and live leaderboard
+
+### 5-Line Interview Summary
+- Added pure functions `adjusted_time()` and `rank_teams()` in `game.py`, sorting strictly by cleared checkpoints (desc), adjusted time (asc), and earlier last unlock timestamp (asc).
+- Handled zero-clear teams gracefully so they remain at the bottom of the table without breaking timestamp comparisons or numeric sorts.
+- Delivered `GET /api/leaderboard` cached in memory with a 1-second TTL to shield SQLite from concurrent poll storms across dozens of competing devices.
+- Invalidated the leaderboard cache immediately on every successful checkpoint unlock so standings update live with zero perceived lag.
+- Built the player Leaderboard tab with own-team highlighting and an automatic Finish screen displaying final rank and verified adjusted time when completing the last checkpoint.
+
+### Interview Questions & Answers
+**Q1: Why do we cache `/api/leaderboard` in memory for 1 second and clear it on unlock instead of querying SQLite on every request?**  
+**A1:** With 70+ teams polling every few seconds, high concurrency would hammer SQLite with dozens of redundant table aggregations per second on a single-worker server. An in-memory cache with a 1-second TTL collapses these spikes down to at most one calculation per second. Clearing the cache inside `unlock_checkpoint` ensures that whenever actual game state changes, the very next request reflects the new standing instantly without waiting for TTL expiration.
+
+**Q2: Why is adjusted time the only currency for rankings rather than combining points and speed?**  
+**A2:** Mixed point and time formulas often produce unintuitive edge cases where a team that had a slow, messy run beats a team that solved clues quickly and cleanly just by hoarding side points. By translating all actions into time adjustments (`elapsed at last unlock + penalties − bonuses`), the best physical run wins, and trade-offs (like a +3 min hint penalty) have a concrete, unambiguous impact on the leaderboard.

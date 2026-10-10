@@ -29,7 +29,7 @@
       </div>
     </header>
 
-    <button id="btn-leaderboard" class="map-btn map-btn-top-right" aria-label="Open leaderboard" hidden>
+    <button id="btn-leaderboard" class="map-btn map-btn-top-right" aria-label="Open leaderboard">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M18 20V10"></path>
         <path d="M12 20V4"></path>
@@ -56,7 +56,7 @@
       <p id="clue-text" class="clue-text">Waiting for first clue...</p>
     </section>
 
-    <!-- Bottom Navigation Tab Bar (Map and Team) -->
+    <!-- Bottom Navigation Tab Bar (Map, Leaderboard, Team) -->
     <nav id="game-tab-bar" class="game-tab-bar" role="tablist" aria-label="Player navigation">
       <button type="button" id="tab-game-map" class="game-nav-btn active" role="tab" aria-selected="true" aria-controls="map">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -65,6 +65,14 @@
           <line x1="16" y1="6" x2="16" y2="22"></line>
         </svg>
         <span>Map</span>
+      </button>
+      <button type="button" id="tab-game-leaderboard" class="game-nav-btn" role="tab" aria-selected="false" aria-controls="view-leaderboard">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 20V10"></path>
+          <path d="M12 20V4"></path>
+          <path d="M6 20v-6"></path>
+        </svg>
+        <span>Leaderboard</span>
       </button>
       <button type="button" id="tab-game-team" class="game-nav-btn" role="tab" aria-selected="false" aria-controls="view-team">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -220,6 +228,38 @@
     </div>
   </div>
 
+  <!-- Live Leaderboard View Panel -->
+  <div id="view-leaderboard" class="overlay-modal" role="tabpanel" aria-labelledby="tab-game-leaderboard" hidden>
+    <div class="overlay-card leaderboard-panel-card">
+      <div class="overlay-header">
+        <h2 id="leaderboard-title" class="overlay-title">Live Leaderboard</h2>
+        <p class="overlay-subtitle">Rankings update automatically</p>
+      </div>
+
+      <div class="leaderboard-table-container">
+        <table class="leaderboard-table" aria-label="Team rankings">
+          <thead>
+            <tr>
+              <th scope="col" class="th-rank">Rank</th>
+              <th scope="col" class="th-team">Team</th>
+              <th scope="col" class="th-cleared">Cleared</th>
+              <th scope="col" class="th-time">Time</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-tbody">
+            <tr>
+              <td colspan="4" class="leaderboard-empty-row">Loading rankings...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <button type="button" id="btn-close-leaderboard" class="btn btn-secondary btn-block">
+        Back to Map
+      </button>
+    </div>
+  </div>
+
   <!-- Navigation / Route History Overlay -->
   <div id="nav-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="nav-title" hidden>
     <div class="overlay-card history-modal-card">
@@ -258,6 +298,36 @@
       <button type="button" id="btn-unlock-continue" class="btn btn-primary btn-block">
         Continue Quest
       </button>
+    </div>
+  </div>
+
+  <!-- Finish Screen Overlay (Shown after clearing final checkpoint) -->
+  <div id="finish-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="finish-title" hidden>
+    <div class="overlay-card finish-card">
+      <div class="finish-icon-circle" aria-hidden="true">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="7"></circle>
+          <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+        </svg>
+      </div>
+      <span class="status-badge badge-running">Quest Completed!</span>
+      <h2 id="finish-title" class="finish-title">Congratulations!</h2>
+      <p class="finish-subtitle">You have cleared all checkpoints in the quest.</p>
+
+      <div class="finish-stats-grid">
+        <div class="finish-stat-box">
+          <span class="finish-stat-label">Final Rank</span>
+          <span id="finish-final-rank" class="finish-stat-val">#--</span>
+        </div>
+        <div class="finish-stat-box">
+          <span class="finish-stat-label">Adjusted Time</span>
+          <span id="finish-final-time" class="finish-stat-val">--:--</span>
+        </div>
+      </div>
+
+      <div class="finish-note-box">
+        <p class="finish-note-text">Your completion time is confirmed on the server clock. Full final standings will be released when the organizer concludes the event.</p>
+      </div>
     </div>
   </div>
 

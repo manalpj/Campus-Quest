@@ -113,3 +113,46 @@ def normalize_team_code(code: str) -> str:
     """Normalize input team code by trimming whitespace and capitalizing."""
     return code.strip().upper()
 
+
+def adjusted_time(
+    elapsed_at_last_unlock_s: int,
+    penalty_s: int = 0,
+    bonus_s: int = 0,
+) -> int:
+    """Calculate team adjusted time in seconds.
+
+    Adjusted time = elapsed time at last unlock + penalties - bonuses.
+    Clamped to minimum 0.
+    """
+    return max(0, elapsed_at_last_unlock_s + penalty_s - bonus_s)
+
+
+def rank_teams(rows: list[dict]) -> list[dict]:
+    """Sort teams and assign 1-indexed ranks based on Campus Quest ranking rules.
+
+    Sorting hierarchy:
+    1. Checkpoints cleared (descending, most cleared wins)
+    2. Adjusted time in seconds (ascending, lowest adjusted time wins)
+    3. Last unlock timestamp (ascending, earlier unlock wins)
+    4. Stable tie-break (team_id ascending)
+
+    Teams that have not cleared anything yet appear at the bottom.
+    Returns a new list of team dictionaries with a 'rank' key added.
+    """
+    def _sort_key(row: dict):
+        cleared = row.get("cleared", 0)
+        adj_time = row.get("adjusted_time", 0)
+        last_unlock = row.get("last_unlock_ts")
+        last_unlock_val = float("inf") if last_unlock is None else float(last_unlock)
+        team_id = row.get("team_id", 0)
+        return (-cleared, adj_time, last_unlock_val, team_id)
+
+    sorted_rows = sorted(rows, key=_sort_key)
+    result = []
+    for idx, item in enumerate(sorted_rows, start=1):
+        ranked_item = dict(item)
+        ranked_item["rank"] = idx
+        result.append(ranked_item)
+    return result
+
+

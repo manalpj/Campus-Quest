@@ -3,9 +3,11 @@
 import pytest
 from game import (
     accuracy_ok,
+    adjusted_time,
     haversine_m,
     is_inside,
     next_streak,
+    rank_teams,
     should_unlock,
 )
 
@@ -92,3 +94,70 @@ def test_streak_and_unlock_flow():
     streak = next_streak(streak, inside=True)
     assert streak == 1
     assert should_unlock(streak, required=2) is False
+
+
+def test_adjusted_time_calculation():
+    """Adjusted time adds penalties, subtracts bonuses, and never falls below 0."""
+    # Basic addition/subtraction
+    assert adjusted_time(elapsed_at_last_unlock_s=120, penalty_s=60, bonus_s=20) == 160
+    # Defaults
+    assert adjusted_time(elapsed_at_last_unlock_s=300) == 300
+    # Clamping negative time to 0
+    assert adjusted_time(elapsed_at_last_unlock_s=30, penalty_s=0, bonus_s=120) == 0
+
+
+def test_rank_teams_more_checkpoints_beats_faster_time():
+    """A team that cleared more checkpoints ranks higher even with a much higher time."""
+    teams = [
+        {"team_id": 1, "name": "Speedy Few", "cleared": 2, "adjusted_time": 60, "last_unlock_ts": 100},
+        {"team_id": 2, "name": "Steady Many", "cleared": 4, "adjusted_time": 600, "last_unlock_ts": 500},
+    ]
+    ranked = rank_teams(teams)
+    assert ranked[0]["name"] == "Steady Many"
+    assert ranked[0]["rank"] == 1
+    assert ranked[1]["name"] == "Speedy Few"
+    assert ranked[1]["rank"] == 2
+
+
+def test_rank_teams_tie_on_count_broken_by_adjusted_time():
+    """When checkpoint counts tie, lower adjusted time ranks higher."""
+    teams = [
+        {"team_id": 1, "name": "Team High Penalty", "cleared": 3, "adjusted_time": 400, "last_unlock_ts": 300},
+        {"team_id": 2, "name": "Team Clean Run", "cleared": 3, "adjusted_time": 250, "last_unlock_ts": 320},
+    ]
+    ranked = rank_teams(teams)
+    assert ranked[0]["name"] == "Team Clean Run"
+    assert ranked[0]["rank"] == 1
+    assert ranked[1]["name"] == "Team High Penalty"
+    assert ranked[1]["rank"] == 2
+
+
+def test_rank_teams_tie_on_count_and_time_broken_by_earlier_unlock():
+    """When both count and adjusted time tie, the earlier last unlock wins."""
+    teams = [
+        {"team_id": 1, "name": "Late Finisher", "cleared": 3, "adjusted_time": 300, "last_unlock_ts": 1200.0},
+        {"team_id": 2, "name": "Early Finisher", "cleared": 3, "adjusted_time": 300, "last_unlock_ts": 900.0},
+    ]
+    ranked = rank_teams(teams)
+    assert ranked[0]["name"] == "Early Finisher"
+    assert ranked[0]["rank"] == 1
+    assert ranked[1]["name"] == "Late Finisher"
+    assert ranked[1]["rank"] == 2
+
+
+def test_rank_teams_zero_cleared_at_bottom():
+    """Teams with 0 checkpoints cleared always appear below teams with >=1 clear."""
+    teams = [
+        {"team_id": 1, "name": "Zero Hero", "cleared": 0, "adjusted_time": 0, "last_unlock_ts": None},
+        {"team_id": 2, "name": "Slow One", "cleared": 1, "adjusted_time": 9999, "last_unlock_ts": 5000.0},
+        {"team_id": 3, "name": "Zero Two", "cleared": 0, "adjusted_time": 0, "last_unlock_ts": None},
+    ]
+    ranked = rank_teams(teams)
+    assert ranked[0]["name"] == "Slow One"
+    assert ranked[0]["rank"] == 1
+    # Both zero-cleared teams are at the bottom
+    zero_names = {ranked[1]["name"], ranked[2]["name"]}
+    assert zero_names == {"Zero Hero", "Zero Two"}
+    assert ranked[1]["rank"] == 2
+    assert ranked[2]["rank"] == 3
+

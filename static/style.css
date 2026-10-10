@@ -1463,4 +1463,214 @@ body {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 
+/* Leaderboard Panel & Table */
+.leaderboard-panel-card {
+  max-width: 540px;
+}
+
+.leaderboard-table-container {
+  max-height: 58vh;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  margin-bottom: var(--space-16);
+  -webkit-overflow-scrolling: touch;
+}
+
+.leaderboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.leaderboard-table th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: var(--space-8) var(--space-12);
+  border-bottom: 2px solid var(--border);
+  z-index: 2;
+}
+
+.leaderboard-table td {
+  padding: var(--space-12);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.th-rank,
+.td-rank {
+  width: 52px;
+  text-align: center;
+}
+
+.th-cleared,
+.td-cleared {
+  width: 72px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.th-time,
+.td-time {
+  width: 76px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  background-color: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.rank-badge-1 {
+  background-color: #fef7e0;
+  color: #b06000;
+  border-color: #fce8b2;
+}
+
+.rank-badge-2 {
+  background-color: #f1f3f4;
+  color: #3c4043;
+  border-color: #dadce0;
+}
+
+.rank-badge-3 {
+  background-color: #fce8e6;
+  color: #c5221f;
+  border-color: #fad2cf;
+}
+
+.leaderboard-team-name-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-weight: 500;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.leaderboard-self-tag {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--primary);
+  background-color: rgba(26, 115, 232, 0.12);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.leaderboard-row-self {
+  background-color: rgba(26, 115, 232, 0.08);
+}
+
+.leaderboard-row-self .leaderboard-team-name-cell {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.leaderboard-empty-row {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: var(--space-24) var(--space-12);
+}
+
+/* Finish Screen Modal */
+.finish-card {
+  text-align: center;
+  max-width: 440px;
+}
+
+.finish-icon-circle {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background-color: #e6f4ea;
+  color: var(--success);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto var(--space-12) auto;
+  border: 2px solid #ceead6;
+}
+
+.finish-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: var(--space-8);
+  margin-bottom: var(--space-4);
+}
+
+.finish-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: var(--space-16);
+}
+
+.finish-stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-12);
+  margin-bottom: var(--space-16);
+}
+
+.finish-stat-box {
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-12);
+}
+
+.finish-stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+}
+
+.finish-stat-val {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.finish-note-box {
+  background-color: var(--attention-bg);
+  border: 1px solid #fce8b2;
+  border-radius: var(--radius);
+  padding: var(--space-12);
+  text-align: left;
+}
+
+.finish-note-text {
+  font-size: 0.8125rem;
+  color: var(--attention);
+  line-height: 1.5;
+}
+
+
 

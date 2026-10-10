@@ -18,7 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Tab Navigation elements
   const gameTabBar = document.getElementById('game-tab-bar');
   const tabGameMap = document.getElementById('tab-game-map');
+  const tabGameLeaderboard = document.getElementById('tab-game-leaderboard');
   const tabGameTeam = document.getElementById('tab-game-team');
+  const btnLeaderboard = document.getElementById('btn-leaderboard');
 
   // Team View Panel elements
   const viewTeam = document.getElementById('view-team');
@@ -27,6 +29,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const teamInfoDevice = document.getElementById('team-info-device');
   const teamInfoMembers = document.getElementById('team-info-members');
   const btnCloseTeam = document.getElementById('btn-close-team');
+
+  // Leaderboard View Panel elements
+  const viewLeaderboard = document.getElementById('view-leaderboard');
+  const leaderboardTbody = document.getElementById('leaderboard-tbody');
+  const btnCloseLeaderboard = document.getElementById('btn-close-leaderboard');
+
+  // Finish Screen elements
+  const finishOverlay = document.getElementById('finish-overlay');
+  const finishFinalRank = document.getElementById('finish-final-rank');
+  const finishFinalTime = document.getElementById('finish-final-time');
 
   // Route & History Overlay elements
   const navOverlay = document.getElementById('nav-overlay');
@@ -294,28 +306,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Bottom Tabs & Overlay Navigation ---
 
-  if (tabGameMap && tabGameTeam) {
-    tabGameMap.addEventListener('click', () => {
-      tabGameMap.classList.add('active');
-      tabGameMap.setAttribute('aria-selected', 'true');
-      tabGameTeam.classList.remove('active');
-      tabGameTeam.setAttribute('aria-selected', 'false');
-      if (viewTeam) viewTeam.hidden = true;
-    });
+  function switchTab(target) {
+    if (tabGameMap) {
+      tabGameMap.classList.toggle('active', target === 'map');
+      tabGameMap.setAttribute('aria-selected', target === 'map' ? 'true' : 'false');
+    }
+    if (tabGameLeaderboard) {
+      tabGameLeaderboard.classList.toggle('active', target === 'leaderboard');
+      tabGameLeaderboard.setAttribute('aria-selected', target === 'leaderboard' ? 'true' : 'false');
+    }
+    if (tabGameTeam) {
+      tabGameTeam.classList.toggle('active', target === 'team');
+      tabGameTeam.setAttribute('aria-selected', target === 'team' ? 'true' : 'false');
+    }
 
-    tabGameTeam.addEventListener('click', () => {
-      tabGameTeam.classList.add('active');
-      tabGameTeam.setAttribute('aria-selected', 'true');
-      tabGameMap.classList.remove('active');
-      tabGameMap.setAttribute('aria-selected', 'false');
-      if (viewTeam) viewTeam.hidden = false;
-    });
+    if (viewTeam) viewTeam.hidden = (target !== 'team');
+    if (viewLeaderboard) {
+      viewLeaderboard.hidden = (target !== 'leaderboard');
+      if (target === 'leaderboard') {
+        fetchLeaderboard();
+      }
+    }
+  }
+
+  if (tabGameMap) {
+    tabGameMap.addEventListener('click', () => switchTab('map'));
+  }
+
+  if (tabGameLeaderboard) {
+    tabGameLeaderboard.addEventListener('click', () => switchTab('leaderboard'));
+  }
+
+  if (tabGameTeam) {
+    tabGameTeam.addEventListener('click', () => switchTab('team'));
+  }
+
+  if (btnLeaderboard) {
+    btnLeaderboard.addEventListener('click', () => switchTab('leaderboard'));
+  }
+
+  if (btnCloseLeaderboard) {
+    btnCloseLeaderboard.addEventListener('click', () => switchTab('map'));
   }
 
   if (btnCloseTeam) {
-    btnCloseTeam.addEventListener('click', () => {
-      if (tabGameMap) tabGameMap.click();
-    });
+    btnCloseTeam.addEventListener('click', () => switchTab('map'));
   }
 
   if (btnNav && navOverlay) {
@@ -334,6 +369,71 @@ document.addEventListener('DOMContentLoaded', () => {
     btnUnlockContinue.addEventListener('click', () => {
       unlockOverlay.hidden = true;
     });
+  }
+
+  // --- Leaderboard Controller ---
+
+  function fetchLeaderboard() {
+    return fetch('/api/leaderboard')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load leaderboard');
+        return res.json();
+      })
+      .then((data) => {
+        renderLeaderboard(data);
+        return data;
+      })
+      .catch(() => {
+        if (leaderboardTbody && (!leaderboardTbody.children.length || leaderboardTbody.querySelector('.leaderboard-empty-row'))) {
+          leaderboardTbody.innerHTML = `
+            <tr>
+              <td colspan="4" class="leaderboard-empty-row">Unable to load rankings. Retrying...</td>
+            </tr>
+          `;
+        }
+        return null;
+      });
+  }
+
+  function renderLeaderboard(data) {
+    if (!leaderboardTbody) return;
+    if (!data || data.length === 0) {
+      leaderboardTbody.innerHTML = `
+        <tr>
+          <td colspan="4" class="leaderboard-empty-row">No teams registered yet.</td>
+        </tr>
+      `;
+      return;
+    }
+
+    const currentCode = currentGameState ? currentGameState.code : null;
+    const currentName = currentGameState ? currentGameState.name : null;
+
+    let html = '';
+    data.forEach((t) => {
+      const isSelf = (currentCode && t.code === currentCode) || (currentName && t.name === currentName);
+      const rowClass = isSelf ? ' class="leaderboard-row-self"' : '';
+      const badgeClass = t.rank <= 3 ? ` rank-badge-${t.rank}` : '';
+      const selfTag = isSelf ? '<span class="leaderboard-self-tag">You</span>' : '';
+
+      html += `
+        <tr${rowClass}>
+          <td class="td-rank">
+            <span class="rank-badge${badgeClass}">${t.rank}</span>
+          </td>
+          <td>
+            <div class="leaderboard-team-name-cell">
+              <span>${escapeHtml(t.name)}</span>
+              ${selfTag}
+            </div>
+          </td>
+          <td class="td-cleared">${t.cleared}/${t.total}</td>
+          <td class="td-time">${escapeHtml(t.adjusted_time)}</td>
+        </tr>
+      `;
+    });
+
+    leaderboardTbody.innerHTML = html;
   }
 
   // --- State, Lobby & Active Game Controller ---
@@ -428,6 +528,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.finished) {
       if (clueTargetLabel) clueTargetLabel.textContent = 'Route Complete';
       if (clueTextEl) clueTextEl.textContent = 'All checkpoints cleared! Superb run!';
+      showFinishScreen();
     } else if (state.current_clue) {
       if (clueTargetLabel) clueTargetLabel.textContent = `Checkpoint #${cleared + 1}`;
       if (clueTextEl) clueTextEl.textContent = state.current_clue;
@@ -443,10 +544,30 @@ document.addEventListener('DOMContentLoaded', () => {
     renderRouteHistory(state.cleared_checkpoints || []);
 
     // Start elapsed timer driven by server start time
-    startElapsedTimer(state.started_at_ms);
+    if (!state.finished) {
+      startElapsedTimer(state.started_at_ms);
+      // Start background location pinging
+      startPinging();
+    } else {
+      stopElapsedTimer();
+    }
+  }
 
-    // Start background location pinging
-    startPinging();
+  function showFinishScreen() {
+    if (!finishOverlay) return;
+    if (unlockOverlay) unlockOverlay.hidden = true;
+    finishOverlay.hidden = false;
+    stopElapsedTimer();
+
+    fetchLeaderboard().then((data) => {
+      if (data && currentGameState) {
+        const myTeam = data.find((t) => (currentGameState.code && t.code === currentGameState.code) || t.name === currentGameState.name);
+        if (myTeam) {
+          if (finishFinalRank) finishFinalRank.textContent = `#${myTeam.rank}`;
+          if (finishFinalTime) finishFinalTime.textContent = myTeam.adjusted_time;
+        }
+      }
+    });
   }
 
   function populateLobbyDetails(state) {
@@ -636,6 +757,7 @@ document.addEventListener('DOMContentLoaded', () => {
             setGpsStatus('GPS weak, move to open area', 'chip-weak');
           } else if (data.status === 'completed') {
             fetchState();
+            showFinishScreen();
           }
         })
         .catch(() => {
@@ -682,12 +804,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (clueCard) clueCard.hidden = true;
     if (gameTabBar) gameTabBar.hidden = true;
     if (viewTeam) viewTeam.hidden = true;
+    if (viewLeaderboard) viewLeaderboard.hidden = true;
+    if (finishOverlay) finishOverlay.hidden = true;
   }
 
   function startPolling() {
     if (pollingTimer) clearInterval(pollingTimer);
     pollingTimer = setInterval(() => {
       fetchState();
+      if ((viewLeaderboard && !viewLeaderboard.hidden) || (finishOverlay && !finishOverlay.hidden)) {
+        fetchLeaderboard();
+      }
     }, pollIntervalMs);
   }
 

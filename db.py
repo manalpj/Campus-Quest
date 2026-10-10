@@ -599,3 +599,31 @@ def get_team_cleared_checkpoints(conn: sqlite3.Connection, team_id: int) -> list
     ).fetchall()
 
 
+def get_leaderboard_data(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Retrieve raw progress and penalty metrics for all registered teams for ranking.
+
+    Returns rows containing:
+    team_id, name, code, penalty_s, bonus_s, finished_at, cleared, total,
+    elapsed_at_last_unlock_s, last_unlock_ts.
+    """
+    return conn.execute(
+        """
+        SELECT 
+            t.id AS team_id,
+            t.name,
+            t.code,
+            t.penalty_s,
+            t.bonus_s,
+            t.finished_at,
+            COUNT(p.checkpoint_id) AS cleared,
+            (SELECT COUNT(*) FROM checkpoints) AS total,
+            COALESCE(MAX(p.elapsed_s), 0) AS elapsed_at_last_unlock_s,
+            MAX(p.unlocked_at) AS last_unlock_ts
+        FROM teams t
+        LEFT JOIN progress p ON t.id = p.team_id
+        GROUP BY t.id
+        """
+    ).fetchall()
+
+
+

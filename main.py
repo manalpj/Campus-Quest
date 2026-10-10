@@ -690,6 +690,7 @@ def ping_location(
             lat=body.lat,
             lng=body.lng,
         )
+        invalidate_leaderboard_cache()
 
         subsequent_cp = db.get_team_next_checkpoint(conn, team["id"])
         cleared_after, _ = db.get_team_progress_counts(conn, team["id"])
@@ -714,9 +715,80 @@ def ping_location(
         return {"status": "searching"}
 
 
+LEADERBOARD_CACHE_TTL_S = 1.0
+_leaderboard_cache = {
+    "cached_at": 0.0,
+    "data": [],
+}
+
+
+def invalidate_leaderboard_cache() -> None:
+    """Clear the in-memory leaderboard cache immediately."""
+    global _leaderboard_cache
+    _leaderboard_cache = {"cached_at": 0.0, "data": []}
+
+
+@app.get("/api/leaderboard")
+def get_leaderboard(
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Retrieve current ranked leaderboard.
+
+    Computes ranking at most once per second and caches in memory.
+    Cache is invalidated immediately on every checkpoint unlock.
+    Returns rank, team name, code, cleared/total, adjusted time, and finished status.
+    """
+    global _leaderboard_cache
+    now = time.time()
+    if (now - _leaderboard_cache["cached_at"]) < LEADERBOARD_CACHE_TTL_S and _leaderboard_cache["data"]:
+        return _leaderboard_cache["data"]
+
+    rows = db.get_leaderboard_data(conn)
+    team_data = []
+    for r in rows:
+        adj_s = game.adjusted_time(
+            elapsed_at_last_unlock_s=r["elapsed_at_last_unlock_s"],
+            penalty_s=r["penalty_s"],
+            bonus_s=r["bonus_s"],
+        )
+        team_data.append({
+            "team_id": r["team_id"],
+            "name": r["name"],
+            "code": r["code"],
+            "cleared": r["cleared"],
+            "total": r["total"],
+            "adjusted_time": adj_s,
+            "last_unlock_ts": r["last_unlock_ts"],
+            "finished": bool(r["finished_at"]),
+        })
+
+    ranked = game.rank_teams(team_data)
+
+    formatted = [
+        {
+            "rank": t["rank"],
+            "name": t["name"],
+            "code": t["code"],
+            "cleared": t["cleared"],
+            "total": t["total"],
+            "adjusted_time_s": t["adjusted_time"],
+            "adjusted_time": f"{t['adjusted_time'] // 60:02d}:{t['adjusted_time'] % 60:02d}",
+            "finished": t["finished"],
+        }
+        for t in ranked
+    ]
+
+    _leaderboard_cache = {
+        "cached_at": now,
+        "data": formatted,
+    }
+    return formatted
+
+
 # Mount static files (must come after specific API and /gods routes)
 if STATIC_DIR.is_dir():
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
 
 
 
