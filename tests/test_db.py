@@ -243,3 +243,32 @@ def test_fastapi_lifespan_initializes_db(tmp_path, monkeypatch):
     finally:
         conn.close()
 
+
+def test_get_db_cross_thread_close(tmp_path, monkeypatch):
+    """get_db allows closing connection from another thread as done in AnyIO threadpool."""
+    import threading
+
+    db_file = str(tmp_path / "thread_test.db")
+    monkeypatch.setattr(config, "DB_PATH", db_file)
+    db.init_db()
+
+    gen = db.get_db()
+    conn = next(gen)
+
+    err = None
+
+    def close_conn():
+        nonlocal err
+        try:
+            with pytest.raises(StopIteration):
+                next(gen)
+        except Exception as e:
+            err = e
+
+    t = threading.Thread(target=close_conn)
+    t.start()
+    t.join()
+
+    assert err is None, f"Cross-thread close failed with: {err}"
+
+

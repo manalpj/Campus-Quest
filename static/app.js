@@ -462,6 +462,11 @@ document.addEventListener('DOMContentLoaded', () => {
     if (testModeBanner) {
       testModeBanner.hidden = !active;
     }
+    const mapEl = document.getElementById('map');
+    if (mapEl) {
+      mapEl.classList.toggle('test-mode-map', active);
+    }
+    document.body.classList.toggle('test-mode-active', active);
   }
 
   function fetchRules(force = false) {
@@ -508,9 +513,48 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function updatePlayerLocation(lat, lng, accuracy) {
+    if (!mapInstance) return;
+    const latLng = [lat, lng];
+    const acc = typeof accuracy === 'number' ? accuracy : 5.0;
+
+    latestFix = {
+      lat,
+      lng,
+      accuracy: acc,
+      ts: Date.now() / 1000,
+    };
+
+    if (!locationDot) {
+      accuracyCircle = L.circle(latLng, {
+        radius: acc,
+        color: '#1a73e8',
+        weight: 1,
+        opacity: 0.6,
+        fillColor: '#1a73e8',
+        fillOpacity: 0.12,
+      }).addTo(mapInstance);
+
+      locationDot = L.circleMarker(latLng, {
+        radius: 8,
+        fillColor: '#1a73e8',
+        color: '#ffffff',
+        weight: 3,
+        opacity: 1,
+        fillOpacity: 1,
+      }).addTo(mapInstance);
+    } else {
+      locationDot.setLatLng(latLng);
+      if (accuracyCircle) {
+        accuracyCircle.setLatLng(latLng);
+        accuracyCircle.setRadius(acc);
+      }
+    }
+  }
+
   function sendSimulatedPing(lat, lng) {
     if (!currentGameState || currentGameState.game_state !== 'running' || currentGameState.finished) {
-      showPowerupToast('Game is not running');
+      showPowerupToast('Cannot fake location: Start the game in /gods first');
       return;
     }
     const testFix = {
@@ -522,6 +566,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     updatePlayerLocation(testFix.lat, testFix.lng, testFix.accuracy);
+    showPowerupToast(`📍 Simulated location (${testFix.lat.toFixed(4)}, ${testFix.lng.toFixed(4)})`);
 
     fetch('/api/ping', {
       method: 'POST',
@@ -594,6 +639,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (target === 'leaderboard') {
         fetchLeaderboard();
       }
+    }
+    if (target === 'map' && mapInstance) {
+      setTimeout(() => {
+        mapInstance.invalidateSize();
+      }, 50);
     }
   }
 
@@ -1449,36 +1499,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const accuracy = position.coords.accuracy;
       const latLng = [lat, lng];
 
-      latestFix = {
-        lat,
-        lng,
-        accuracy,
-        ts: position.timestamp || Date.now(),
-      };
-
-      if (!locationDot) {
-        accuracyCircle = L.circle(latLng, {
-          radius: accuracy,
-          color: '#1a73e8',
-          weight: 1,
-          opacity: 0.6,
-          fillColor: '#1a73e8',
-          fillOpacity: 0.12,
-        }).addTo(mapInstance);
-
-        locationDot = L.circleMarker(latLng, {
-          radius: 8,
-          fillColor: '#1a73e8',
-          color: '#ffffff',
-          weight: 3,
-          opacity: 1,
-          fillOpacity: 1,
-        }).addTo(mapInstance);
-      } else {
-        locationDot.setLatLng(latLng);
-        accuracyCircle.setLatLng(latLng);
-        accuracyCircle.setRadius(accuracy);
-      }
+      updatePlayerLocation(lat, lng, accuracy);
+      latestFix.ts = position.timestamp || Date.now();
 
       if (!initialFixApplied) {
         if (campusBounds.contains(latLng)) {

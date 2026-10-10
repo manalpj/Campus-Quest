@@ -394,6 +394,63 @@
 **Q2: Why does `GET /api/rules` build its text dynamically from configuration settings instead of serving a static text or HTML document?**  
 **A2:** In game-driven applications, rules often change during tuning—such as adjusting hint penalties from 3 minutes to 5 minutes, or changing skip wait times from 10 to 15 minutes. If rules and FAQ entries were hardcoded in static HTML, code changes in `config.py` would cause the documentation to display conflicting or obsolete numbers to players. Computing the text dynamically from `config.HINT_PENALTY_S`, `config.SKIP_WAIT_S`, `config.ACCURACY_LIMIT_M`, etc., guarantees that player-facing documentation stays 100% synchronized with the server's authoritative game engine.
 
+---
+
+## Fix: SQLite Cross-Thread Connection Close & Dotenv Hot-Reload
+
+### 5-Line Interview Summary
+- Diagnosed `sqlite3.ProgrammingError` where worker threads in FastAPI's AnyIO threadpool attempted to close connection handles created on another worker thread.
+- Added `check_same_thread=False` to `sqlite3.connect()` in `db.get_connection()`, allowing cross-thread cleanup during `get_db` generator exit.
+- Added `override=True` to `load_dotenv()` in `config.py` so modifying `.env` flags (such as `ALLOW_TEST_MODE`) takes immediate effect on server reload.
+- Created `test_get_db_cross_thread_close` in `tests/test_db.py` to ensure multi-threaded context cleanup never raises `ProgrammingError`.
+- Verified that all 139 tests across the entire test suite pass cleanly without warnings or thread lockups.
+
+### Interview Questions & Answers
+**Q1: Why does FastAPI trigger a `sqlite3.ProgrammingError` on `conn.close()` if `check_same_thread=False` is omitted?**  
+**A1:** Synchronous routes and dependencies in FastAPI run inside an AnyIO worker threadpool (`anyio.to_thread.run_sync`). When a dependency like `get_db` yields a connection, the generator enters on one threadpool worker. When the response finishes, FastAPI runs the context manager exit (`conn.close()`) on whatever worker thread is available next. By default, Python's `sqlite3` enforces `check_same_thread=True` and raises `ProgrammingError` whenever a connection is touched or closed from a different thread ID. Setting `check_same_thread=False` permits cross-thread closure while SQLite's file-level WAL locking maintains database safety.
+
+**Q2: Why did setting `ALLOW_TEST_MODE=1` in `.env` not take effect until `override=True` was added?**  
+**A2:** By default, `python-dotenv`'s `load_dotenv()` ignores any keys that already exist in `os.environ`. When Uvicorn boots, environment variables are cached; when `.env` is modified and a module is reloaded, `load_dotenv()` without `override=True` leaves the old value intact. Specifying `load_dotenv(override=True)` forces `python-dotenv` to overwrite in-memory environment variables with newly saved values on reload.
+
+---
+
+## Fix: Test Mode Interactive Cursor & Simulated Location Fix Helper
+
+### 5-Line Interview Summary
+- Overrode Leaflet's default `.leaflet-grab { cursor: grab; }` style with `cursor: crosshair !important` on `#map` whenever test mode is active.
+- Added dynamic toggling of `test-mode-map` and `test-mode-active` CSS classes inside `setTestMode()` in `app.js`.
+- Implemented the missing `updatePlayerLocation(lat, lng, accuracy)` helper function in `app.js` to eliminate a runtime `ReferenceError`.
+- Reused `updatePlayerLocation` inside both real GPS watcher callbacks and simulated test click pings for consistent marker rendering.
+- Enhanced user feedback with instant toast confirmation showing coordinates and descriptive errors if the game is not running.
+
+### Interview Questions & Answers
+**Q1: Why did clicking the Leaflet map fail silently when test mode was enabled?**  
+**A1:** The click handler in `app.js` invoked `updatePlayerLocation()`, but that function had not yet been defined in the client script. In JavaScript, invoking an undeclared function raises an unhandled `ReferenceError`. This crashed the click event handler before `fetch('/api/ping')` could be called, leaving no visual feedback and preventing the HTTP request from ever dispatching. Defining `updatePlayerLocation()` and sharing it across both simulated clicks and genuine `watchPosition` callbacks resolved the crash.
+
+**Q2: Why did hovering over the map show an open hand cursor instead of a pointer or crosshair?**  
+**A2:** Leaflet's stylesheet explicitly sets `cursor: -webkit-grab; cursor: grab;` on `.leaflet-grab` and `.leaflet-container` for map dragging. Standard CSS rules on `#map` alone do not override Leaflet's class-specific grabbing selectors without an `!important` rule or targeting `.leaflet-grab`. Applying `.test-mode-active #map, .test-mode-map .leaflet-grab { cursor: crosshair !important; }` ensures the browser displays a target crosshair cursor immediately whenever test mode is toggled on.
+
+---
+
+## Fix: Tile URL Template Fallback & Map Viewport Invalidation
+
+### 5-Line Interview Summary
+- Added automatic validation in `config.py` checking if `TILE_URL` contains the required `{z}` coordinate placeholder.
+- Implemented a safe fallback to `"https://tile.openstreetmap.org/{z}/{x}/{y}.png"` if a user accidentally pastes an OpenStreetMap browser link into `.env`.
+- Corrected `.env.example` line 67 from a static web link to the working Leaflet tile template URL.
+- Added `mapInstance.invalidateSize()` in `app.js` upon switching to the Map tab to guarantee proper tile container recalculation.
+- Confirmed `GET /api/config` delivers the valid tile template, restoring full map rendering without blank gray tiles.
+
+### Interview Questions & Answers
+**Q1: Why did pasting an OpenStreetMap web URL cause the Leaflet map to turn solid gray?**  
+**A1:** Leaflet `L.tileLayer` requests map tiles using coordinate template variables `{z}/{x}/{y}.png`. If an administrator or developer pastes an OpenStreetMap web URL (like `https://www.openstreetmap.org/#map=17/...`), the URL lacks these placeholders. Leaflet attempts to load the OpenStreetMap HTML website as an image for every tile grid coordinate, failing HTTP image decoding and leaving the Leaflet container completely gray.
+
+**Q2: How does the configuration fallback in `config.py` prevent this failure?**  
+**A2:** By checking `if "{z}" not in _raw_tile_url:`, the backend identifies when an invalid or standard browser URL was provided in environment variables. Instead of propagating the broken URL to clients via `GET /api/config`, it automatically falls back to `"https://tile.openstreetmap.org/{z}/{x}/{y}.png"`. This makes the application resilient against common configuration mistakes during deployment or local setup.
+
+
+
+
 
 
 

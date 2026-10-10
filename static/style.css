@@ -2255,6 +2255,16 @@ body {
   border: 1px solid #fce8b2;
 }
 
+/* Test Mode Map Cursor */
+.test-mode-active #map,
+.test-mode-active #map.leaflet-container,
+.test-mode-active #map .leaflet-grab,
+.test-mode-map,
+.test-mode-map.leaflet-container,
+.test-mode-map .leaflet-grab {
+  cursor: crosshair !important;
+}
+
 
 
 

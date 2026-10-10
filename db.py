@@ -95,6 +95,7 @@ DEFAULT_SETTINGS = [
 def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     """Open an autocommit SQLite connection with standard production PRAGMAs.
 
+    - check_same_thread=False: Allows AnyIO threadpool workers to close connections safely across threads.
     - isolation_level=None: Disables Python's automatic transaction management so
       transactions can be controlled explicitly using BEGIN IMMEDIATE in write_tx.
     - journal_mode=WAL: Allows concurrent readers alongside a writer.
@@ -102,7 +103,7 @@ def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     - foreign_keys=ON: Enforces relational constraints on all foreign keys.
     """
     path = db_path if db_path is not None else config.DB_PATH
-    conn = sqlite3.connect(path, isolation_level=None)
+    conn = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode = WAL;")
     conn.execute("PRAGMA busy_timeout = 5000;")

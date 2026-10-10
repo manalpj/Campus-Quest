@@ -9,8 +9,8 @@ import os
 from typing import Any, Dict
 from dotenv import load_dotenv
 
-# Load local .env file if present
-load_dotenv()
+# Load local .env file if present (override=True ensures hot-reloads pick up .env edits)
+load_dotenv(override=True)
 
 
 def _get_str(key: str, default: str) -> str:
@@ -80,7 +80,9 @@ CAMPUS_MIN_ZOOM: int = _get_int("CAMPUS_MIN_ZOOM", 15)
 CAMPUS_MAX_ZOOM: int = _get_int("CAMPUS_MAX_ZOOM", 19)
 
 # 4. Map Tile Settings
-TILE_URL: str = _get_str("TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+_raw_tile_url: str = _get_str("TILE_URL", "https://tile.openstreetmap.org/{z}/{x}/{y}.png")
+# Leaflet requires {z}/{x}/{y} placeholders; fall back safely if a standard webpage URL was entered
+TILE_URL: str = _raw_tile_url if "{z}" in _raw_tile_url else "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 TILE_ATTRIBUTION: str = _get_str(
     "TILE_ATTRIBUTION",
     '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
