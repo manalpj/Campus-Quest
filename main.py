@@ -94,6 +94,26 @@ class PingRequest(BaseModel):
     ts: Optional[float] = Field(default=None, description="Optional client timestamp")
 
 
+class TeamAdjustRequest(BaseModel):
+    """Validated input model for administrator team time adjustments."""
+
+    minutes: int = Field(..., ge=-180, le=180, description="Minutes to add (+) or remove (-), cannot be 0")
+    reason: str = Field(..., min_length=3, max_length=120, description="Reason for adjustment (3 to 120 chars)")
+
+    @field_validator("minutes")
+    @classmethod
+    def validate_minutes(cls, v: int) -> int:
+        if v == 0:
+            raise ValueError("Adjustment minutes cannot be 0")
+        return v
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, v: str) -> str:
+        trimmed = v.strip()
+        if len(trimmed) < 3 or len(trimmed) > 120:
+            raise ValueError("Reason must be between 3 and 120 characters")
+        return trimmed
 
 
 class CheckpointCreateRequest(BaseModel):
@@ -506,6 +526,101 @@ def get_gods_game_status(
         "started_at_ms": int(started_at * 1000) if started_at else None,
         "countdown_s": config.COUNTDOWN_S,
     }
+
+
+# --- Admin Teams Management Endpoints ---
+
+
+@app.get("/api/gods/teams")
+def list_gods_teams(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Retrieve overview of all registered teams with device status, timing, and progress."""
+    rows = db.get_admin_teams_data(conn)
+    result = []
+    now = time.time()
+    for r in rows:
+        adj_s = game.adjusted_time(
+            elapsed_at_last_unlock_s=r["elapsed_at_last_unlock_s"],
+            penalty_s=r["penalty_s"],
+            bonus_s=r["bonus_s"],
+        )
+        members = json.loads(r["members"]) if r["members"] else []
+        device_status = "bound" if r["device_hash"] else "free"
+        last_seen = r["last_seen"]
+        last_seen_s_ago = int(max(0, now - last_seen)) if last_seen else None
+
+        result.append({
+            "id": r["id"],
+            "name": r["name"],
+            "code": r["code"],
+            "members": members,
+            "device_status": device_status,
+            "last_seen": last_seen,
+            "last_seen_s_ago": last_seen_s_ago,
+            "cleared": r["cleared"],
+            "total": r["total"],
+            "adjusted_time_s": adj_s,
+            "adjusted_time": f"{adj_s // 60:02d}:{adj_s % 60:02d}",
+            "penalty_s": r["penalty_s"],
+            "bonus_s": r["bonus_s"],
+            "finished": bool(r["finished_at"]),
+        })
+    return result
+
+
+@app.post("/api/gods/teams/{team_id}/release")
+def release_gods_team_device(
+    team_id: int,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Clear device hash for team, allowing a replacement device to bind via team code."""
+    success = db.release_team_device(conn, team_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Team not found")
+    return {"status": "ok", "team_id": team_id, "device_status": "free"}
+
+
+@app.post("/api/gods/teams/{team_id}/adjust")
+def adjust_gods_team_time(
+    team_id: int,
+    body: TeamAdjustRequest,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Add or remove minutes from a team's score with a mandatory logged reason."""
+    success, penalty_s, bonus_s = db.adjust_team_time(
+        conn,
+        team_id=team_id,
+        minutes=body.minutes,
+        reason=body.reason,
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="Team not found")
+    invalidate_leaderboard_cache()
+    return {
+        "status": "ok",
+        "team_id": team_id,
+        "minutes_adjusted": body.minutes,
+        "penalty_s": penalty_s,
+        "bonus_s": bonus_s,
+    }
+
+
+@app.delete("/api/gods/teams/{team_id}")
+def delete_gods_team(
+    team_id: int,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Delete a team, cascading to its progress and hints, and audit-logging the action."""
+    deleted = db.delete_team(conn, team_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Team not found")
+    invalidate_leaderboard_cache()
+    return {"status": "ok", "deleted_id": team_id}
 
 
 # --- Player Team & Device Endpoints ---

@@ -20,8 +20,35 @@ document.addEventListener("DOMContentLoaded", () => {
   // Elements: Tabs
   const tabBtnGame = document.getElementById("tab-btn-game");
   const tabBtnCheckpoints = document.getElementById("tab-btn-checkpoints");
+  const tabBtnTeams = document.getElementById("tab-btn-teams");
   const tabPanelGame = document.getElementById("tab-panel-game");
   const tabPanelCheckpoints = document.getElementById("tab-panel-checkpoints");
+  const tabPanelTeams = document.getElementById("tab-panel-teams");
+
+  // Elements: Teams Tab
+  const teamsAlert = document.getElementById("gods-teams-alert");
+  const teamsCounterPill = document.getElementById("teams-counter-pill");
+  const btnRefreshTeams = document.getElementById("btn-refresh-teams");
+  const teamsTableBody = document.getElementById("teams-table-body");
+
+  // Elements: Adjust Modal
+  const adjustModal = document.getElementById("adjust-modal");
+  const adjustTeamName = document.getElementById("adjust-team-name");
+  const adjustModalAlert = document.getElementById("adjust-modal-alert");
+  const adjustForm = document.getElementById("adjust-form");
+  const adjustTeamId = document.getElementById("adjust-team-id");
+  const adjustMinutesInput = document.getElementById("adjust-minutes-input");
+  const adjustReasonInput = document.getElementById("adjust-reason-input");
+  const btnAdjustCancel = document.getElementById("btn-adjust-cancel");
+  const btnAdjustModalClose = document.getElementById("btn-adjust-modal-close");
+
+  // Elements: Delete Modal
+  const deleteModal = document.getElementById("delete-modal");
+  const deleteModalWarning = document.getElementById("delete-modal-warning");
+  const deleteModalAlert = document.getElementById("delete-modal-alert");
+  const btnDeleteCancel = document.getElementById("btn-delete-cancel");
+  const btnDeleteModalClose = document.getElementById("btn-delete-modal-close");
+  const btnDeleteConfirm = document.getElementById("btn-delete-confirm");
 
   // Elements: Game Tab
   const gameAlert = document.getElementById("gods-game-alert");
@@ -72,6 +99,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let isMapInitialized = false;
   let currentGameStatus = null;
   let countdownTimerInterval = null;
+  let teamsData = [];
+  let teamsRefreshInterval = null;
+  let pendingDeleteTeamId = null;
 
   function showLoginAlert(message, isError = true) {
     if (!loginAlert) return;
@@ -97,6 +127,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!globalAlert) return;
     globalAlert.textContent = "";
     globalAlert.hidden = true;
+  }
+
+  function showTeamsAlert(message, isError = true) {
+    if (!teamsAlert) return;
+    teamsAlert.textContent = message;
+    teamsAlert.hidden = false;
+    teamsAlert.className = isError ? "gods-alert gods-alert-error" : "gods-alert gods-alert-success";
+  }
+
+  function hideTeamsAlert() {
+    if (!teamsAlert) return;
+    teamsAlert.textContent = "";
+    teamsAlert.hidden = true;
   }
 
   function showFormAlert(message) {
@@ -127,25 +170,49 @@ document.addEventListener("DOMContentLoaded", () => {
   function switchTab(tabName) {
     hideGameAlert();
     hideGlobalAlert();
+    hideTeamsAlert();
 
     const isGame = tabName === "game";
+    const isCheckpoints = tabName === "checkpoints";
+    const isTeams = tabName === "teams";
+
     if (tabBtnGame) {
       tabBtnGame.classList.toggle("active", isGame);
       tabBtnGame.setAttribute("aria-selected", isGame ? "true" : "false");
     }
     if (tabBtnCheckpoints) {
-      tabBtnCheckpoints.classList.toggle("active", !isGame);
-      tabBtnCheckpoints.setAttribute("aria-selected", !isGame ? "true" : "false");
+      tabBtnCheckpoints.classList.toggle("active", isCheckpoints);
+      tabBtnCheckpoints.setAttribute("aria-selected", isCheckpoints ? "true" : "false");
     }
+    if (tabBtnTeams) {
+      tabBtnTeams.classList.toggle("active", isTeams);
+      tabBtnTeams.setAttribute("aria-selected", isTeams ? "true" : "false");
+    }
+
     if (tabPanelGame) {
       tabPanelGame.hidden = !isGame;
     }
     if (tabPanelCheckpoints) {
-      tabPanelCheckpoints.hidden = isGame;
+      tabPanelCheckpoints.hidden = !isCheckpoints;
+    }
+    if (tabPanelTeams) {
+      tabPanelTeams.hidden = !isTeams;
     }
 
-    if (!isGame && mapInstance) {
+    if (isCheckpoints && mapInstance) {
       setTimeout(() => mapInstance.invalidateSize(), 120);
+    }
+
+    if (isTeams) {
+      loadAdminTeams();
+      if (!teamsRefreshInterval) {
+        teamsRefreshInterval = setInterval(loadAdminTeams, 5000);
+      }
+    } else {
+      if (teamsRefreshInterval) {
+        clearInterval(teamsRefreshInterval);
+        teamsRefreshInterval = null;
+      }
     }
   }
 
@@ -354,12 +421,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function showLoginForm() {
+    if (teamsRefreshInterval) {
+      clearInterval(teamsRefreshInterval);
+      teamsRefreshInterval = null;
+    }
     const container = document.querySelector(".gods-container");
     if (container) container.classList.remove("gods-container-shell");
     if (adminShellSection) adminShellSection.hidden = true;
     if (loginSection) loginSection.hidden = false;
     if (passwordInput) passwordInput.value = "";
     hideGlobalAlert();
+    hideTeamsAlert();
   }
 
   // --- Session Management ---
@@ -1032,6 +1104,269 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // --- Admin Teams Tab Management ---
+
+  async function loadAdminTeams() {
+    try {
+      const res = await fetch("/api/gods/teams", {
+        headers: { "Accept": "application/json" },
+      });
+      if (res.status === 401) {
+        showLoginForm();
+        return;
+      }
+      if (!res.ok) {
+        throw new Error("Failed to load registered teams.");
+      }
+      const data = await res.json();
+      teamsData = data;
+      renderAdminTeams(data);
+    } catch (err) {
+      showTeamsAlert("Teams fetch error: " + err.message, true);
+    }
+  }
+
+  function renderAdminTeams(teams) {
+    if (teamsCounterPill) {
+      teamsCounterPill.textContent = `${teams.length} team${teams.length === 1 ? "" : "s"}`;
+    }
+
+    if (!teamsTableBody) return;
+
+    if (!teams || teams.length === 0) {
+      teamsTableBody.innerHTML = `
+        <tr>
+          <td colspan="8" class="table-empty-cell">No teams registered yet. Open registration and share the link.</td>
+        </tr>
+      `;
+      return;
+    }
+
+    teamsTableBody.innerHTML = "";
+    teams.forEach((t) => {
+      const tr = document.createElement("tr");
+
+      const isStale = (t.last_seen_s_ago !== null && t.last_seen_s_ago > 60);
+      if (isStale) {
+        tr.classList.add("team-row-stale");
+      }
+
+      // 1. Team Name
+      const tdName = document.createElement("td");
+      tdName.className = "team-name-cell";
+      tdName.textContent = t.name;
+
+      // 2. Team Code
+      const tdCode = document.createElement("td");
+      const codeBadge = document.createElement("span");
+      codeBadge.className = "team-code-badge";
+      codeBadge.textContent = t.code;
+      tdCode.appendChild(codeBadge);
+
+      // 3. Members
+      const tdMembers = document.createElement("td");
+      tdMembers.className = "team-members-cell";
+      tdMembers.textContent = Array.isArray(t.members) ? t.members.join(", ") : "";
+
+      // 4. Device status
+      const tdDevice = document.createElement("td");
+      const deviceBadge = document.createElement("span");
+      const isBound = t.device_status === "bound";
+      deviceBadge.className = `badge-device ${isBound ? "badge-device-bound" : "badge-device-free"}`;
+      deviceBadge.textContent = isBound ? "Bound" : "Free";
+      tdDevice.appendChild(deviceBadge);
+
+      // 5. Last Seen
+      const tdLastSeen = document.createElement("td");
+      tdLastSeen.className = "team-last-seen-cell";
+      if (t.last_seen_s_ago === null) {
+        tdLastSeen.textContent = "Never";
+      } else {
+        tdLastSeen.textContent = `${t.last_seen_s_ago}s ago`;
+      }
+      if (isStale) {
+        const staleChip = document.createElement("span");
+        staleChip.className = "stale-warning-chip";
+        staleChip.textContent = ">60s";
+        staleChip.title = "Team inactive for more than 60 seconds";
+        tdLastSeen.appendChild(staleChip);
+      }
+
+      // 6. Cleared count
+      const tdCleared = document.createElement("td");
+      tdCleared.textContent = `${t.cleared} / ${t.total}`;
+
+      // 7. Adjusted Time
+      const tdTime = document.createElement("td");
+      tdTime.textContent = t.adjusted_time;
+
+      // 8. Actions
+      const tdActions = document.createElement("td");
+      tdActions.className = "team-actions-cell";
+
+      // Release Device button
+      const btnRelease = document.createElement("button");
+      btnRelease.type = "button";
+      btnRelease.className = "gods-btn gods-btn-secondary gods-btn-sm";
+      btnRelease.textContent = "Release Device";
+      btnRelease.disabled = !isBound;
+      if (!isBound) {
+        btnRelease.title = "Device is already free (unbound)";
+      }
+      btnRelease.addEventListener("click", () => handleReleaseDevice(t));
+      tdActions.appendChild(btnRelease);
+
+      // Adjust Time button
+      const btnAdjust = document.createElement("button");
+      btnAdjust.type = "button";
+      btnAdjust.className = "gods-btn gods-btn-secondary gods-btn-sm";
+      btnAdjust.textContent = "Adjust Minutes";
+      btnAdjust.addEventListener("click", () => openAdjustModal(t));
+      tdActions.appendChild(btnAdjust);
+
+      // Delete Team button
+      const btnDelete = document.createElement("button");
+      btnDelete.type = "button";
+      btnDelete.className = "gods-btn gods-btn-danger gods-btn-sm";
+      btnDelete.textContent = "Delete";
+      btnDelete.addEventListener("click", () => openDeleteModal(t));
+      tdActions.appendChild(btnDelete);
+
+      tr.appendChild(tdName);
+      tr.appendChild(tdCode);
+      tr.appendChild(tdMembers);
+      tr.appendChild(tdDevice);
+      tr.appendChild(tdLastSeen);
+      tr.appendChild(tdCleared);
+      tr.appendChild(tdTime);
+      tr.appendChild(tdActions);
+
+      teamsTableBody.appendChild(tr);
+    });
+  }
+
+  async function handleReleaseDevice(team) {
+    hideTeamsAlert();
+    try {
+      const res = await fetch(`/api/gods/teams/${team.id}/release`, {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to release device.");
+      }
+      showTeamsAlert(`Device released for "${team.name}". The next phone entering team code will become the bound device.`, false);
+      await loadAdminTeams();
+    } catch (err) {
+      showTeamsAlert("Release device error: " + err.message, true);
+    }
+  }
+
+  function openAdjustModal(team) {
+    if (!adjustModal) return;
+    if (adjustModalAlert) adjustModalAlert.hidden = true;
+    if (adjustTeamId) adjustTeamId.value = team.id;
+    if (adjustTeamName) adjustTeamName.textContent = `Team: ${team.name} (${team.code})`;
+    if (adjustMinutesInput) adjustMinutesInput.value = "";
+    if (adjustReasonInput) adjustReasonInput.value = "";
+    adjustModal.hidden = false;
+    if (adjustMinutesInput) adjustMinutesInput.focus();
+  }
+
+  function closeAdjustModal() {
+    if (!adjustModal) return;
+    adjustModal.hidden = true;
+    if (adjustForm) adjustForm.reset();
+  }
+
+  async function handleAdjustFormSubmit(e) {
+    e.preventDefault();
+    if (!adjustModalAlert || !adjustTeamId || !adjustMinutesInput || !adjustReasonInput) return;
+
+    adjustModalAlert.hidden = true;
+    const teamId = parseInt(adjustTeamId.value, 10);
+    const minutes = parseInt(adjustMinutesInput.value, 10);
+    const reason = adjustReasonInput.value.trim();
+
+    if (isNaN(minutes) || minutes === 0) {
+      adjustModalAlert.textContent = "Please enter non-zero minutes (positive for penalty, negative for bonus).";
+      adjustModalAlert.hidden = false;
+      return;
+    }
+
+    if (reason.length < 3 || reason.length > 120) {
+      adjustModalAlert.textContent = "Reason is required (3 to 120 characters).";
+      adjustModalAlert.hidden = false;
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/gods/teams/${teamId}/adjust`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({ minutes, reason }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to adjust team minutes.");
+      }
+
+      closeAdjustModal();
+      showTeamsAlert(`Successfully adjusted ${minutes > 0 ? "+" : ""}${minutes} minutes for "${teamsData.find(t => t.id === teamId)?.name || 'team'}" (Reason: "${reason}").`, false);
+      await loadAdminTeams();
+    } catch (err) {
+      adjustModalAlert.textContent = err.message;
+      adjustModalAlert.hidden = false;
+    }
+  }
+
+  function openDeleteModal(team) {
+    if (!deleteModal) return;
+    pendingDeleteTeamId = team.id;
+    if (deleteModalAlert) deleteModalAlert.hidden = true;
+    if (deleteModalWarning) {
+      deleteModalWarning.textContent = `Permanently delete "${team.name}" (${team.code})? All cleared checkpoint progress and hint logs for this team will be deleted.`;
+    }
+    deleteModal.hidden = false;
+  }
+
+  function closeDeleteModal() {
+    if (!deleteModal) return;
+    deleteModal.hidden = true;
+    pendingDeleteTeamId = null;
+  }
+
+  async function handleConfirmDelete() {
+    if (!pendingDeleteTeamId) return;
+    if (deleteModalAlert) deleteModalAlert.hidden = true;
+
+    try {
+      const res = await fetch(`/api/gods/teams/${pendingDeleteTeamId}`, {
+        method: "DELETE",
+        headers: { "Accept": "application/json" },
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to delete team.");
+      }
+
+      closeDeleteModal();
+      showTeamsAlert("Team deleted successfully.", false);
+      await loadAdminTeams();
+    } catch (err) {
+      if (deleteModalAlert) {
+        deleteModalAlert.textContent = err.message;
+        deleteModalAlert.hidden = false;
+      }
+    }
+  }
+
   function escapeHtml(str) {
     if (!str) return "";
     return str
@@ -1049,6 +1384,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (tabBtnCheckpoints) {
     tabBtnCheckpoints.addEventListener("click", () => switchTab("checkpoints"));
   }
+  if (tabBtnTeams) {
+    tabBtnTeams.addEventListener("click", () => switchTab("teams"));
+  }
+  if (btnRefreshTeams) {
+    btnRefreshTeams.addEventListener("click", () => loadAdminTeams());
+  }
   if (btnSwitchToCheckpoints) {
     btnSwitchToCheckpoints.addEventListener("click", () => switchTab("checkpoints"));
   }
@@ -1061,6 +1402,44 @@ document.addEventListener("DOMContentLoaded", () => {
   if (btnGameEnd) {
     btnGameEnd.addEventListener("click", handleEndGame);
   }
+
+  // Modal event listeners
+  if (adjustForm) {
+    adjustForm.addEventListener("submit", handleAdjustFormSubmit);
+  }
+  if (btnAdjustCancel) {
+    btnAdjustCancel.addEventListener("click", closeAdjustModal);
+  }
+  if (btnAdjustModalClose) {
+    btnAdjustModalClose.addEventListener("click", closeAdjustModal);
+  }
+  if (adjustModal) {
+    adjustModal.addEventListener("click", (e) => {
+      if (e.target === adjustModal) closeAdjustModal();
+    });
+  }
+
+  if (btnDeleteConfirm) {
+    btnDeleteConfirm.addEventListener("click", handleConfirmDelete);
+  }
+  if (btnDeleteCancel) {
+    btnDeleteCancel.addEventListener("click", closeDeleteModal);
+  }
+  if (btnDeleteModalClose) {
+    btnDeleteModalClose.addEventListener("click", closeDeleteModal);
+  }
+  if (deleteModal) {
+    deleteModal.addEventListener("click", (e) => {
+      if (e.target === deleteModal) closeDeleteModal();
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (adjustModal && !adjustModal.hidden) closeAdjustModal();
+      if (deleteModal && !deleteModal.hidden) closeDeleteModal();
+    }
+  });
 
   // Check session on page load
   checkSession();

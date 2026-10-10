@@ -1840,5 +1840,157 @@ body {
   pointer-events: none;
 }
 
+/* ==========================================================================
+   Admin Teams Management Tab Styles
+   ========================================================================== */
+
+.gods-table-container {
+  width: 100%;
+  max-height: 600px;
+  overflow-x: auto;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+  -webkit-overflow-scrolling: touch;
+}
+
+.gods-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.gods-table th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: var(--space-8) var(--space-12);
+  border-bottom: 2px solid var(--border);
+  z-index: 2;
+  white-space: nowrap;
+}
+
+.gods-table td {
+  padding: var(--space-12);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.gods-table tr:last-child td {
+  border-bottom: none;
+}
+
+.gods-table .table-empty-cell {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: var(--space-24) var(--space-16);
+}
+
+.team-name-cell {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.team-code-badge {
+  font-family: monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.team-members-cell {
+  color: var(--text-secondary);
+  font-size: 0.8125rem;
+  min-width: 140px;
+  max-width: 220px;
+  word-break: break-word;
+}
+
+.badge-device {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+
+.badge-device-bound {
+  background-color: #e6f4ea;
+  color: var(--success);
+  border: 1px solid #ceead6;
+}
+
+.badge-device-free {
+  background-color: var(--attention-bg);
+  color: var(--attention);
+  border: 1px solid #fce8b2;
+}
+
+.team-last-seen-cell {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+}
+
+/* Highlight teams not seen for > 60 seconds */
+.team-row-stale {
+  background-color: rgba(176, 96, 0, 0.08);
+}
+
+.team-row-stale .team-last-seen-cell {
+  color: var(--attention);
+  font-weight: 600;
+}
+
+.stale-warning-chip {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--attention);
+  background-color: var(--attention-bg);
+  border: 1px solid #fce8b2;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: var(--space-4);
+  white-space: nowrap;
+}
+
+.team-actions-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6, 6px);
+  flex-wrap: wrap;
+}
+
+.modal-target-team {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--primary);
+  margin-bottom: var(--space-12);
+}
+
+.delete-warning-text {
+  font-size: 0.875rem;
+  color: var(--text);
+  line-height: 1.5;
+  margin-bottom: var(--space-16);
+}
+
+
 
 

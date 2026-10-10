@@ -815,4 +815,120 @@ def get_leaderboard_data(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
+def get_admin_teams_data(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Retrieve all teams with device status, members, last_seen, cleared count, and timing.
+
+    Returns rows with:
+    id, name, code, members, device_hash, last_seen, penalty_s, bonus_s,
+    finished_at, cleared, total, elapsed_at_last_unlock_s.
+    Ordered by team id ASC.
+    """
+    return conn.execute(
+        """
+        SELECT
+            t.id,
+            t.name,
+            t.code,
+            t.members,
+            t.device_hash,
+            t.last_seen,
+            t.penalty_s,
+            t.bonus_s,
+            t.finished_at,
+            COUNT(p.checkpoint_id) AS cleared,
+            (SELECT COUNT(*) FROM checkpoints) AS total,
+            COALESCE(MAX(p.elapsed_s), 0) AS elapsed_at_last_unlock_s
+        FROM teams t
+        LEFT JOIN progress p ON t.id = p.team_id
+        GROUP BY t.id
+        ORDER BY t.id ASC
+        """
+    ).fetchall()
+
+
+def release_team_device(conn: sqlite3.Connection, team_id: int) -> bool:
+    """Clear device_hash for a team, releasing device binding so another phone can join.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    Returns True if team existed and was updated, False if team not found.
+    Logs EVENT_DEVICE_RELEASED.
+    """
+    with write_tx(conn):
+        team = get_team_by_id(conn, team_id)
+        if not team:
+            return False
+        conn.execute("UPDATE teams SET device_hash = NULL WHERE id = ?", (team_id,))
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_DEVICE_RELEASED,
+            f"team_id={team_id} code={team['code']}",
+        )
+        return True
+
+
+def adjust_team_time(
+    conn: sqlite3.Connection,
+    team_id: int,
+    minutes: int,
+    reason: str,
+) -> tuple[bool, int, int]:
+    """Adjust team time penalty or bonus by given minutes with an audited reason.
+
+    If minutes > 0, increments penalty_s by minutes * 60.
+    If minutes < 0, increments bonus_s by abs(minutes) * 60.
+    Runs within write_tx (BEGIN IMMEDIATE).
+    Returns (success, new_penalty_s, new_bonus_s).
+    """
+    with write_tx(conn):
+        team = get_team_by_id(conn, team_id)
+        if not team:
+            return False, 0, 0
+
+        diff_s = abs(minutes) * 60
+        if minutes > 0:
+            conn.execute(
+                "UPDATE teams SET penalty_s = penalty_s + ? WHERE id = ?",
+                (diff_s, team_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE teams SET bonus_s = bonus_s + ? WHERE id = ?",
+                (diff_s, team_id),
+            )
+
+        updated = get_team_by_id(conn, team_id)
+        assert updated is not None
+
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_TIME_ADJUSTED,
+            f"minutes={minutes:+d} reason={reason}",
+        )
+        return True, updated["penalty_s"], updated["bonus_s"]
+
+
+def delete_team(conn: sqlite3.Connection, team_id: int) -> bool:
+    """Delete a team and cascade deletes to progress and hint_uses.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    Returns True if deleted, False if team was not found.
+    Logs EVENT_TEAM_DELETED before deletion.
+    """
+    with write_tx(conn):
+        team = get_team_by_id(conn, team_id)
+        if not team:
+            return False
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_TEAM_DELETED,
+            f"team_id={team_id} name={team['name']} code={team['code']}",
+        )
+        conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
+        return True
+
+
+
 

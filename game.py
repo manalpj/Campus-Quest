@@ -20,6 +20,9 @@ EVENT_GAME_ENDED = "game_ended"
 EVENT_ADMIN_LOGIN_SUCCESS = "admin_login_success"
 EVENT_ADMIN_LOGIN_FAILURE = "admin_login_failure"
 EVENT_SPEED_REJECTED = "speed_rejected"
+EVENT_DEVICE_RELEASED = "device_released"
+EVENT_TIME_ADJUSTED = "time_adjusted"
+EVENT_TEAM_DELETED = "team_deleted"
 
 EVENT_TYPES = frozenset({
     EVENT_TEAM_REGISTERED,
@@ -32,6 +35,9 @@ EVENT_TYPES = frozenset({
     EVENT_ADMIN_LOGIN_SUCCESS,
     EVENT_ADMIN_LOGIN_FAILURE,
     EVENT_SPEED_REJECTED,
+    EVENT_DEVICE_RELEASED,
+    EVENT_TIME_ADJUSTED,
+    EVENT_TEAM_DELETED,
 })
 
 

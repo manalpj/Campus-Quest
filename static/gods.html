@@ -62,6 +62,10 @@
           aria-controls="tab-panel-checkpoints">
           Checkpoints
         </button>
+        <button type="button" role="tab" id="tab-btn-teams" class="gods-tab-btn" aria-selected="false"
+          aria-controls="tab-panel-teams">
+          Teams
+        </button>
       </nav>
 
       <!-- Game Control Tab Panel -->
@@ -227,7 +231,87 @@
           </div>
         </div>
       </section>
+
+      <!-- Teams Tab Panel -->
+      <section id="tab-panel-teams" role="tabpanel" aria-labelledby="tab-btn-teams" class="gods-tab-panel" hidden>
+        <div class="gods-panel-top">
+          <div class="gods-counter-badge">
+            <span id="teams-counter-pill" class="counter-pill">0 teams</span>
+            <span class="counter-hint">Auto-refreshes every 5s &bull; Highlighted when inactive &gt; 60s</span>
+          </div>
+          <button type="button" id="btn-refresh-teams" class="gods-btn gods-btn-secondary gods-btn-sm">
+            Refresh Now
+          </button>
+        </div>
+
+        <div id="gods-teams-alert" class="gods-alert" role="alert" hidden></div>
+
+        <div class="gods-table-container" role="region" aria-label="Teams Management Table" tabindex="0">
+          <table class="gods-table" id="teams-table">
+            <thead>
+              <tr>
+                <th scope="col">Team</th>
+                <th scope="col">Code</th>
+                <th scope="col">Members</th>
+                <th scope="col">Device</th>
+                <th scope="col">Last Seen</th>
+                <th scope="col">Cleared</th>
+                <th scope="col">Adjusted Time</th>
+                <th scope="col" class="th-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="teams-table-body">
+              <tr>
+                <td colspan="8" class="table-empty-cell">Loading registered teams...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </section>
+
+    <!-- Adjust Time Modal Dialog -->
+    <div id="adjust-modal" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="adjust-modal-title" hidden>
+      <div class="overlay-card gods-form-card">
+        <div class="gods-form-header">
+          <h2 id="adjust-modal-title" class="gods-form-title">Adjust Team Time</h2>
+          <button type="button" id="btn-adjust-modal-close" class="gods-btn-text" aria-label="Close dialog">Cancel</button>
+        </div>
+        <p id="adjust-team-name" class="modal-target-team"></p>
+        <div id="adjust-modal-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+        <form id="adjust-form" novalidate>
+          <input type="hidden" id="adjust-team-id" value="">
+          <div class="form-group">
+            <label for="adjust-minutes-input">Minutes adjustment <span class="form-hint">(e.g. +5 penalty, -2 credit)</span></label>
+            <input type="number" id="adjust-minutes-input" required min="-180" max="180" step="1" placeholder="+5 or -2">
+          </div>
+          <div class="form-group">
+            <label for="adjust-reason-input">Reason <span class="form-hint">(required, 3 to 120 chars)</span></label>
+            <textarea id="adjust-reason-input" rows="2" maxlength="120" minlength="3" required placeholder="e.g. Verified technical GPS glitch at checkpoint 2"></textarea>
+          </div>
+          <div class="modal-buttons-row">
+            <button type="button" id="btn-adjust-cancel" class="gods-btn gods-btn-secondary">Cancel</button>
+            <button type="submit" id="btn-adjust-submit" class="gods-btn gods-btn-primary">Apply Adjustment</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Delete Team Confirm Modal -->
+    <div id="delete-modal" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title" hidden>
+      <div class="overlay-card gods-form-card">
+        <div class="gods-form-header">
+          <h2 id="delete-modal-title" class="gods-form-title">Delete Team</h2>
+          <button type="button" id="btn-delete-modal-close" class="gods-btn-text" aria-label="Close dialog">Cancel</button>
+        </div>
+        <p id="delete-modal-warning" class="delete-warning-text"></p>
+        <div id="delete-modal-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+        <div class="modal-buttons-row">
+          <button type="button" id="btn-delete-cancel" class="gods-btn gods-btn-secondary">Cancel</button>
+          <button type="button" id="btn-delete-confirm" class="gods-btn gods-btn-danger">Delete Team</button>
+        </div>
+      </div>
+    </div>
   </main>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

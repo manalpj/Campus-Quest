@@ -286,3 +286,22 @@
 **Q2: Can this speed plausibility check stop GPS spoofing entirely?**  
 **A2:** No, and we must be honest about that limitation. Speed plausibility stops rapid teleportation (e.g. jumping between opposite ends of campus in seconds), but it cannot detect a player walking at normal speeds while simulating GPS coordinates via developer tools or mocking apps. True physical presence verification relies on on-site organizers and physical proofs like QR codes or checkpoint answer phrases.
 
+---
+
+## Task 17: Admin Teams tab (Release device, Adjust minutes, Delete team)
+
+### 5-Line Interview Summary
+- Added `GET /api/gods/teams` protected by `require_admin` returning team names, members, codes, device binding status (`bound` vs `free`), `last_seen`, cleared counts, and adjusted times.
+- Implemented `POST /api/gods/teams/{id}/release` atomically clearing `device_hash` to NULL, locking out the old device immediately and allowing replacement phones to bind via team code.
+- Created `POST /api/gods/teams/{id}/adjust` to apply time penalties (+min) or bonuses (-min) with mandatory audit reasons (3 to 120 chars) and invalidating the leaderboard cache.
+- Built `DELETE /api/gods/teams/{id}` with cascade deletion across progress and hints, audited via `team_deleted` in the events table.
+- Developed the `/gods` Teams tab in vanilla JavaScript with 5-second polling, warning highlights for teams inactive for >60s, and accessible modals for adjustments and deletions.
+
+### Interview Questions & Answers
+**Q1: How does "Release device" lock out a dead or lost phone without the phone having to call the server to log out?**  
+**A1:** The device cookie contains only a random secret token; the server stores its SHA-256 hash in `teams.device_hash`. When an admin releases the device, `device_hash` is set to `NULL` in SQLite. On every subsequent request (`/api/state` or `/api/ping`), the dependency `auth.require_team_device` verifies that `team["device_hash"]` is present and matches the token hash. Because `device_hash` is now `NULL`, the old device immediately fails verification with HTTP 401.
+
+**Q2: Why do time adjustments invalidate the in-memory leaderboard cache immediately?**  
+**A2:** The public leaderboard endpoint caches computed team rankings for up to 1 second to minimize database load. When an organizer adds or removes minutes (or deletes a team), players watching the big screen or lobby expect instantaneous updates. Invalidating `_leaderboard_cache` on every adjust and delete ensures standings reflect penalty corrections on the very next 5-second poll cycle without stale delay.
+
+
