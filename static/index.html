@@ -12,19 +12,24 @@
   <div id="map-container">
     <div id="map" role="region" aria-label="DAVV Campus Map"></div>
 
-    <button id="btn-nav" class="map-btn map-btn-top-left" aria-label="Open navigation menu">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <line x1="4" y1="6" x2="20" y2="6"></line>
-        <line x1="4" y1="12" x2="20" y2="12"></line>
-        <line x1="4" y1="18" x2="20" y2="18"></line>
-      </svg>
-    </button>
+    <!-- Top Status Bar HUD -->
+    <header id="game-status-bar" class="game-status-bar" role="banner">
+      <button id="btn-nav" class="status-bar-btn" aria-label="Open quest route and history">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="6" x2="20" y2="6"></line>
+          <line x1="4" y1="12" x2="20" y2="12"></line>
+          <line x1="4" y1="18" x2="20" y2="18"></line>
+        </svg>
+      </button>
 
-    <div id="gps-status" class="gps-status-pill status-waiting" role="status" aria-live="polite">
-      Waiting for GPS...
-    </div>
+      <div class="status-chips-group">
+        <span id="status-cleared" class="chip chip-cleared" title="Cleared checkpoints">0/0</span>
+        <span id="status-timer" class="chip chip-timer" title="Elapsed quest time">00:00</span>
+        <span id="gps-status" class="chip chip-gps chip-waiting" role="status" aria-live="polite">Waiting for GPS...</span>
+      </div>
+    </header>
 
-    <button id="btn-leaderboard" class="map-btn map-btn-top-right" aria-label="Open leaderboard">
+    <button id="btn-leaderboard" class="map-btn map-btn-top-right" aria-label="Open leaderboard" hidden>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M18 20V10"></path>
         <path d="M12 20V4"></path>
@@ -32,11 +37,45 @@
       </svg>
     </button>
 
-    <button id="btn-powerup" class="map-btn map-btn-bottom-left" aria-label="Use power-up">
+    <button id="btn-powerup" class="map-btn map-btn-bottom-left" aria-label="Use power-up" hidden>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
       </svg>
     </button>
+
+    <div id="status-reconnecting" class="reconnecting-banner" role="status" aria-live="assertive" hidden>
+      Reconnecting...
+    </div>
+
+    <!-- Active Clue Card (Docked above bottom navigation) -->
+    <section id="game-clue-card" class="clue-card" aria-label="Current Clue">
+      <div class="clue-card-header">
+        <span class="clue-tag">Route Clue</span>
+        <span id="clue-target-label" class="clue-target-label">Checkpoint</span>
+      </div>
+      <p id="clue-text" class="clue-text">Waiting for first clue...</p>
+    </section>
+
+    <!-- Bottom Navigation Tab Bar (Map and Team) -->
+    <nav id="game-tab-bar" class="game-tab-bar" role="tablist" aria-label="Player navigation">
+      <button type="button" id="tab-game-map" class="game-nav-btn active" role="tab" aria-selected="true" aria-controls="map">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+          <line x1="8" y1="2" x2="8" y2="18"></line>
+          <line x1="16" y1="6" x2="16" y2="22"></line>
+        </svg>
+        <span>Map</span>
+      </button>
+      <button type="button" id="tab-game-team" class="game-nav-btn" role="tab" aria-selected="false" aria-controls="view-team">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+          <circle cx="9" cy="7" r="4"></circle>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        </svg>
+        <span>Team</span>
+      </button>
+    </nav>
   </div>
 
   <!-- Player Onboarding & Team Registration Overlay -->
@@ -46,7 +85,6 @@
         <h1 id="auth-title" class="overlay-title">Campus Quest</h1>
         <p class="overlay-subtitle">DAVV IET Campus geofenced clue hunt</p>
       </div>
-
 
       <nav class="auth-tabs" role="tablist" aria-label="Team entrance options">
         <button id="tab-btn-register" class="tab-btn active" role="tab" aria-selected="true" aria-controls="form-register">
@@ -142,7 +180,6 @@
         <ul class="rules-list">
           <li><strong>Geofenced checkpoints:</strong> Walk together to the physical location to unlock clues.</li>
           <li><strong>One phone:</strong> Only this registered phone tracks your team's unlocks.</li>
-          <li><strong>Power-ups:</strong> Hints add +3 min penalty; Radars reveal live distance for 60 seconds.</li>
           <li><strong>Keep awake:</strong> Keep this browser tab open and your screen unlocked.</li>
         </ul>
       </div>
@@ -150,44 +187,77 @@
       <div class="lobby-footer">
         <p class="lobby-note">Stay in IET campus bounds. The game begins when the organizer triggers the start signal.</p>
       </div>
-
     </div>
   </div>
 
-  <!-- Placeholder Game Screen Overlay (Active during quest before prompt 11 full UI) -->
-  <div id="game-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="game-screen-title" hidden>
-    <div class="overlay-card" id="game-screen-placeholder">
-      <div class="placeholder-header">
-        <span id="game-screen-badge" class="status-badge placeholder-badge">Quest in progress</span>
-        <h2 id="game-screen-title" class="lobby-title">Campus Quest</h2>
-        <p class="field-hint">The hunt is live! Move across DAVV campus to find checkpoints.</p>
-      </div>
-
-      <div class="placeholder-card-content">
-        <div class="state-overview-row">
-          <span class="state-label">Team:</span>
-          <strong id="game-screen-team-name">---</strong>
-        </div>
-        <div class="state-overview-row">
-          <span class="state-label">Status:</span>
-          <span id="game-screen-status-desc">Searching for Checkpoint #1...</span>
-        </div>
-        <div class="placeholder-clue-box">
-          <em>Full interactive clue cards, radar trays, and geofence tracking arrive in Prompt 11. Keep your screen active and walk to your first spot!</em>
+  <!-- Team Information View Panel -->
+  <div id="view-team" class="overlay-modal" role="tabpanel" aria-labelledby="tab-game-team" hidden>
+    <div class="overlay-card team-panel-card">
+      <div class="overlay-header">
+        <h2 id="team-info-name" class="overlay-title">Team</h2>
+        <div class="team-code-banner">
+          <span class="team-code-label">Team code:</span>
+          <span id="team-info-code" class="team-code-value">---</span>
         </div>
       </div>
 
       <div class="device-pill">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+          <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+          <line x1="12" y1="18" x2="12.01" y2="18"></line>
         </svg>
-        <span>GPS Tracking Active</span>
+        <span id="team-info-device">This phone is your team's device</span>
       </div>
 
-      <div class="lobby-footer">
-        <p class="lobby-note">Walk with your team. Keep this screen awake and open.</p>
+      <div class="lobby-section">
+        <h3 class="section-label">Team members</h3>
+        <ul id="team-info-members" class="members-chips-list"></ul>
       </div>
+
+      <button type="button" id="btn-close-team" class="btn btn-secondary btn-block">
+        Back to Map
+      </button>
+    </div>
+  </div>
+
+  <!-- Navigation / Route History Overlay -->
+  <div id="nav-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="nav-title" hidden>
+    <div class="overlay-card history-modal-card">
+      <div class="history-modal-header">
+        <div>
+          <h2 id="nav-title" class="overlay-title">Route & History</h2>
+          <p class="overlay-subtitle">Cleared checkpoints & stories</p>
+        </div>
+        <button type="button" id="btn-close-nav" class="btn-icon-close" aria-label="Close route history">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <div id="history-items-container" class="history-items-list">
+        <p class="empty-history-note">No checkpoints cleared yet. Follow your clue and walk to the first location!</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Checkpoint Unlock Popup Modal -->
+  <div id="unlock-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="unlock-title" hidden>
+    <div class="overlay-card unlock-card">
+      <div class="unlock-icon-circle" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </div>
+      <span class="status-badge badge-running">Checkpoint Cleared!</span>
+      <h2 id="unlock-cp-name" class="unlock-title">Checkpoint Name</h2>
+      <div id="unlock-story-box" class="unlock-story-box" hidden>
+        <p id="unlock-story-text" class="unlock-story-text"></p>
+      </div>
+      <button type="button" id="btn-unlock-continue" class="btn btn-primary btn-block">
+        Continue Quest
+      </button>
     </div>
   </div>
 

@@ -159,3 +159,21 @@
 
 **Q2: How does the server prevent two simultaneous pings from creating duplicate unlock records or skipping a checkpoint?**  
 **A2:** The unlock operation runs inside `write_tx()` using SQLite's `BEGIN IMMEDIATE`, which acquires the exclusive database write lock upfront. Inside the transaction, it checks whether a row already exists in `progress` for `(team_id, checkpoint_id)` before inserting, backed by SQLite's compound primary key constraint. Any concurrent ping is queued by `busy_timeout` and either encounters the existing row or sees an updated streak, guaranteeing that exactly one progress entry is recorded and sequence integrity is preserved.
+
+---
+
+## Task 11: Player game screen: send pings, show clues, show unlocks
+
+### 5-Line Interview Summary
+- Delivered the active mobile game HUD including the status bar (cleared count, server-offset elapsed timer, GPS accuracy chip), docked clue card, and tab bar for Map and Team views.
+- Wired `navigator.geolocation.watchPosition` to periodically transmit fixes newer than the last sent ping every `PING_INTERVAL_MS` to `/api/ping` while polling `/api/state` every `POLL_INTERVAL_MS`.
+- Built the interactive unlock modal popup that celebrates when a checkpoint is cleared, displaying its name, history story, and a continue button to reveal the next clue.
+- Rendered cleared checkpoints on the Leaflet map as green tick markers with popups, while populating a full route history drawer accessible from the top-left navigation menu.
+- Enforced strict geofence secrecy in `GET /api/state`, ensuring uncleared checkpoint coordinates and radii are never transmitted to player clients, verified by automated tests.
+
+### Interview Questions & Answers
+**Q1: Why do we only send a GPS ping if its timestamp is newer than the last sent fix instead of firing on every timer tick?**  
+**A1:** Mobile browsers sometimes report cached or unchanged coordinates if satellite visibility drops or the device is stationary. Sending stale fixes wastes client battery and server bandwidth without providing new spatial information. Verifying `fix.ts > lastSentFixTs` guarantees that the server only evaluates fresh movement readings, preventing duplicate evaluations of identical stationary fixes.
+
+**Q2: Why must `GET /api/state` strictly omit the coordinates and radius of the next target checkpoint?**  
+**A2:** Client-side web state cannot be trusted. If the backend returned target coordinates or geofence radii in API payloads, any player opening the browser DevTools network tab could instantly plot the exact physical coordinates on a map, defeating the clue-solving purpose of the hunt. The server validates geofencing internally and only reveals a checkpoint's coordinates and story after it has already been legitimately unlocked.

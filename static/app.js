@@ -1,21 +1,55 @@
-// Campus Quest - Client Map, Registration & Lobby Controller
+// Campus Quest - Client Map, Registration, Lobby & Game Screen Controller
 // Mobile-first, zero local game state (all state verified against server cookies).
 
 document.addEventListener('DOMContentLoaded', () => {
-  const statusEl = document.getElementById('gps-status');
+  // Navigation & Status elements
+  const statusBar = document.getElementById('game-status-bar');
+  const btnNav = document.getElementById('btn-nav');
+  const statusClearedEl = document.getElementById('status-cleared');
+  const statusTimerEl = document.getElementById('status-timer');
+  const statusGpsEl = document.getElementById('gps-status') || document.getElementById('status-gps');
+  const statusReconnectingEl = document.getElementById('status-reconnecting');
 
-  // Modal elements
+  // Clue Card elements
+  const clueCard = document.getElementById('game-clue-card');
+  const clueTargetLabel = document.getElementById('clue-target-label');
+  const clueTextEl = document.getElementById('clue-text');
+
+  // Tab Navigation elements
+  const gameTabBar = document.getElementById('game-tab-bar');
+  const tabGameMap = document.getElementById('tab-game-map');
+  const tabGameTeam = document.getElementById('tab-game-team');
+
+  // Team View Panel elements
+  const viewTeam = document.getElementById('view-team');
+  const teamInfoName = document.getElementById('team-info-name');
+  const teamInfoCode = document.getElementById('team-info-code');
+  const teamInfoDevice = document.getElementById('team-info-device');
+  const teamInfoMembers = document.getElementById('team-info-members');
+  const btnCloseTeam = document.getElementById('btn-close-team');
+
+  // Route & History Overlay elements
+  const navOverlay = document.getElementById('nav-overlay');
+  const btnCloseNav = document.getElementById('btn-close-nav');
+  const historyItemsContainer = document.getElementById('history-items-container');
+
+  // Unlock Modal elements
+  const unlockOverlay = document.getElementById('unlock-overlay');
+  const unlockCpName = document.getElementById('unlock-cp-name');
+  const unlockStoryBox = document.getElementById('unlock-story-box');
+  const unlockStoryText = document.getElementById('unlock-story-text');
+  const btnUnlockContinue = document.getElementById('btn-unlock-continue');
+
+  // Auth & Lobby modal elements
   const authOverlay = document.getElementById('auth-overlay');
   const lobbyOverlay = document.getElementById('lobby-overlay');
   const authAlert = document.getElementById('auth-alert');
 
-  // Tab elements
+  // Registration & Join forms
   const tabBtnRegister = document.getElementById('tab-btn-register');
   const tabBtnJoin = document.getElementById('tab-btn-join');
   const formRegister = document.getElementById('form-register');
   const formJoin = document.getElementById('form-join');
-
-  // Form inputs & controls
   const regTeamName = document.getElementById('reg-team-name');
   const membersContainer = document.getElementById('members-inputs');
   const btnAddMember = document.getElementById('btn-add-member');
@@ -23,7 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const joinTeamCode = document.getElementById('join-team-code');
   const btnSubmitJoin = document.getElementById('btn-submit-join');
 
-  // Lobby elements
+  // Lobby details
   const lobbyTeamName = document.getElementById('lobby-team-name');
   const lobbyTeamCode = document.getElementById('lobby-team-code');
   const lobbyMembersList = document.getElementById('lobby-members-list');
@@ -32,22 +66,47 @@ document.addEventListener('DOMContentLoaded', () => {
   const lobbyCountdownBanner = document.getElementById('lobby-countdown-banner');
   const lobbyCountdownSec = document.getElementById('lobby-countdown-sec');
 
-  // Game screen placeholder elements
-  const gameOverlay = document.getElementById('game-overlay');
-  const gameScreenTeamName = document.getElementById('game-screen-team-name');
-  const gameScreenBadge = document.getElementById('game-screen-badge');
-  const gameScreenStatusDesc = document.getElementById('game-screen-status-desc');
-
-  // Time & Polling State
+  // Application & Map State
   let serverOffsetMs = null;
   let countdownInterval = null;
   let pollingTimer = null;
+  let pingTimer = null;
+  let elapsedTimer = null;
   let pollIntervalMs = 4000;
+  let pingIntervalMs = 4000;
+  let currentGameState = null;
 
-  function setStatus(message, statusClass) {
-    if (!statusEl) return;
-    statusEl.textContent = message;
-    statusEl.className = 'gps-status-pill ' + statusClass;
+  let latestFix = null;
+  let lastSentFixTs = 0;
+  let mapInstance = null;
+  let campusBounds = null;
+  let locationDot = null;
+  let accuracyCircle = null;
+  let initialFixApplied = false;
+  const clearedMarkersMap = new Map(); // id -> L.marker
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function setGpsStatus(message, statusClass) {
+    if (!statusGpsEl) return;
+    statusGpsEl.textContent = message;
+    statusGpsEl.className = 'chip chip-gps ' + statusClass;
+  }
+
+  function showReconnecting() {
+    if (statusReconnectingEl) statusReconnectingEl.hidden = false;
+  }
+
+  function hideReconnecting() {
+    if (statusReconnectingEl) statusReconnectingEl.hidden = true;
   }
 
   function showAlert(msg, isError = true) {
@@ -63,7 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     authAlert.textContent = '';
   }
 
-  // --- Tab Navigation ---
+  // --- Auth Tabs & Dynamic Member Inputs ---
 
   if (tabBtnRegister && tabBtnJoin) {
     tabBtnRegister.addEventListener('click', () => {
@@ -86,8 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
       clearAlert();
     });
   }
-
-  // --- Dynamic Member Inputs ---
 
   function updateMemberRows() {
     if (!membersContainer) return;
@@ -143,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateMemberRows();
   }
 
-  // --- Registration Handler ---
+  // --- Registration & Join Submit ---
 
   if (formRegister) {
     formRegister.addEventListener('submit', (e) => {
@@ -196,8 +253,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- Join Handler ---
-
   if (formJoin) {
     formJoin.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -237,19 +292,65 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // --- State, Lobby & Countdown Controller ---
+  // --- Bottom Tabs & Overlay Navigation ---
+
+  if (tabGameMap && tabGameTeam) {
+    tabGameMap.addEventListener('click', () => {
+      tabGameMap.classList.add('active');
+      tabGameMap.setAttribute('aria-selected', 'true');
+      tabGameTeam.classList.remove('active');
+      tabGameTeam.setAttribute('aria-selected', 'false');
+      if (viewTeam) viewTeam.hidden = true;
+    });
+
+    tabGameTeam.addEventListener('click', () => {
+      tabGameTeam.classList.add('active');
+      tabGameTeam.setAttribute('aria-selected', 'true');
+      tabGameMap.classList.remove('active');
+      tabGameMap.setAttribute('aria-selected', 'false');
+      if (viewTeam) viewTeam.hidden = false;
+    });
+  }
+
+  if (btnCloseTeam) {
+    btnCloseTeam.addEventListener('click', () => {
+      if (tabGameMap) tabGameMap.click();
+    });
+  }
+
+  if (btnNav && navOverlay) {
+    btnNav.addEventListener('click', () => {
+      navOverlay.hidden = false;
+    });
+  }
+
+  if (btnCloseNav && navOverlay) {
+    btnCloseNav.addEventListener('click', () => {
+      navOverlay.hidden = true;
+    });
+  }
+
+  if (btnUnlockContinue && unlockOverlay) {
+    btnUnlockContinue.addEventListener('click', () => {
+      unlockOverlay.hidden = true;
+    });
+  }
+
+  // --- State, Lobby & Active Game Controller ---
 
   function updateGameState(state) {
     if (!state) return;
+    currentGameState = state;
+    hideReconnecting();
 
-    // Compute clock offset once so client never trusts phone clock
+    // Compute clock offset once so client relies strictly on server time
     if (serverOffsetMs === null && typeof state.server_now_ms === 'number') {
       serverOffsetMs = state.server_now_ms - Date.now();
     }
 
     if (authOverlay) authOverlay.hidden = true;
 
-    // Clear active countdown timer tick
+    // Clear active countdown interval if changing state
     if (countdownInterval) {
       clearInterval(countdownInterval);
       countdownInterval = null;
@@ -258,7 +359,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentServerTime = Date.now() + (serverOffsetMs || 0);
 
     if (state.game_state === 'setup') {
-      if (gameOverlay) gameOverlay.hidden = true;
+      if (statusBar) statusBar.hidden = true;
+      if (clueCard) clueCard.hidden = true;
+      if (gameTabBar) gameTabBar.hidden = true;
+      if (viewTeam) viewTeam.hidden = true;
       if (lobbyOverlay) lobbyOverlay.hidden = false;
       if (lobbyCountdownBanner) lobbyCountdownBanner.hidden = true;
       if (lobbyStatusBadge) {
@@ -266,10 +370,14 @@ document.addEventListener('DOMContentLoaded', () => {
         lobbyStatusBadge.className = 'status-badge status-waiting';
       }
       populateLobbyDetails(state);
+      stopElapsedTimer();
     } else if (state.game_state === 'running') {
       if (state.started_at_ms && currentServerTime < state.started_at_ms) {
-        // Countdown is active
-        if (gameOverlay) gameOverlay.hidden = true;
+        // Countdown active
+        if (statusBar) statusBar.hidden = true;
+        if (clueCard) clueCard.hidden = true;
+        if (gameTabBar) gameTabBar.hidden = true;
+        if (viewTeam) viewTeam.hidden = true;
         if (lobbyOverlay) lobbyOverlay.hidden = false;
         if (lobbyCountdownBanner) lobbyCountdownBanner.hidden = false;
         if (lobbyStatusBadge) {
@@ -277,6 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
           lobbyStatusBadge.className = 'status-badge status-waiting';
         }
         populateLobbyDetails(state);
+        stopElapsedTimer();
 
         const updateCountdown = () => {
           const nowServer = Date.now() + (serverOffsetMs || 0);
@@ -285,44 +394,59 @@ document.addEventListener('DOMContentLoaded', () => {
           if (remainingSec <= 0) {
             clearInterval(countdownInterval);
             countdownInterval = null;
-            showGamePlaceholder(state);
+            showActiveGameScreen(state);
           }
         };
         updateCountdown();
         countdownInterval = setInterval(updateCountdown, 1000);
       } else {
-        // Game has started and countdown has finished
-        showGamePlaceholder(state);
+        // Countdown finished, hunt is live
+        showActiveGameScreen(state);
       }
     } else if (state.game_state === 'ended') {
-      if (lobbyOverlay) lobbyOverlay.hidden = true;
-      if (gameOverlay) {
-        gameOverlay.hidden = false;
-        if (gameScreenTeamName) gameScreenTeamName.textContent = state.name || '---';
-        if (gameScreenBadge) {
-          gameScreenBadge.textContent = 'Quest Ended';
-          gameScreenBadge.className = 'status-badge status-waiting';
-        }
-        if (gameScreenStatusDesc) {
-          gameScreenStatusDesc.textContent = 'The event has concluded. View final leaderboard with organizers!';
-        }
-      }
+      showActiveGameScreen(state);
+      stopElapsedTimer();
+      if (clueTargetLabel) clueTargetLabel.textContent = 'Ended';
+      if (clueTextEl) clueTextEl.textContent = 'The quest has concluded! Thank you for participating.';
     }
   }
 
-  function showGamePlaceholder(state) {
+  function showActiveGameScreen(state) {
     if (lobbyOverlay) lobbyOverlay.hidden = true;
-    if (gameOverlay) {
-      gameOverlay.hidden = false;
-      if (gameScreenTeamName) gameScreenTeamName.textContent = state.name || '---';
-      if (gameScreenBadge) {
-        gameScreenBadge.textContent = 'Quest in progress';
-        gameScreenBadge.className = 'status-badge placeholder-badge';
-      }
-      if (gameScreenStatusDesc) {
-        gameScreenStatusDesc.textContent = 'Searching for Checkpoint #1...';
-      }
+    if (authOverlay) authOverlay.hidden = true;
+
+    if (statusBar) statusBar.hidden = false;
+    if (clueCard) clueCard.hidden = false;
+    if (gameTabBar) gameTabBar.hidden = false;
+
+    // Update status chips
+    const cleared = state.cleared || 0;
+    const total = state.total || 0;
+    if (statusClearedEl) statusClearedEl.textContent = `Cleared ${cleared}/${total}`;
+
+    // Update Clue Card
+    if (state.finished) {
+      if (clueTargetLabel) clueTargetLabel.textContent = 'Route Complete';
+      if (clueTextEl) clueTextEl.textContent = 'All checkpoints cleared! Superb run!';
+    } else if (state.current_clue) {
+      if (clueTargetLabel) clueTargetLabel.textContent = `Checkpoint #${cleared + 1}`;
+      if (clueTextEl) clueTextEl.textContent = state.current_clue;
     }
+
+    // Update Team info panel
+    populateTeamPanel(state);
+
+    // Update Cleared Checkpoints on Leaflet map
+    renderClearedMarkers(state.cleared_checkpoints || []);
+
+    // Update Route History Drawer
+    renderRouteHistory(state.cleared_checkpoints || []);
+
+    // Start elapsed timer driven by server start time
+    startElapsedTimer(state.started_at_ms);
+
+    // Start background location pinging
+    startPinging();
   }
 
   function populateLobbyDetails(state) {
@@ -343,35 +467,234 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function populateTeamPanel(state) {
+    if (teamInfoName) teamInfoName.textContent = state.name || 'Your Team';
+    if (teamInfoCode) teamInfoCode.textContent = state.code || '---';
+    if (teamInfoDevice && state.device_status) {
+      teamInfoDevice.textContent = state.device_status;
+    }
+
+    if (teamInfoMembers) {
+      teamInfoMembers.innerHTML = '';
+      (state.members || []).forEach((member) => {
+        const li = document.createElement('li');
+        li.className = 'member-chip';
+        li.textContent = member;
+        teamInfoMembers.appendChild(li);
+      });
+    }
+  }
+
+  function renderClearedMarkers(clearedList) {
+    if (!mapInstance) return;
+
+    clearedList.forEach((cp) => {
+      if (!clearedMarkersMap.has(cp.id)) {
+        const pinIcon = L.divIcon({
+          className: 'cleared-tick-pin',
+          html: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+          popupAnchor: [0, -14],
+        });
+
+        const marker = L.marker([cp.lat, cp.lng], { icon: pinIcon }).addTo(mapInstance);
+        const popupContent = `
+          <div style="font-family: var(--font-stack); padding: 4px; max-width: 200px;">
+            <strong style="color: var(--text); font-size: 14px;">${escapeHtml(cp.name)}</strong>
+            ${cp.story ? `<p style="margin: 4px 0 0 0; font-size: 12px; color: var(--text-secondary); line-height: 1.4;">${escapeHtml(cp.story)}</p>` : ''}
+          </div>
+        `;
+        marker.bindPopup(popupContent);
+        clearedMarkersMap.set(cp.id, marker);
+      }
+    });
+  }
+
+  function renderRouteHistory(clearedList) {
+    if (!historyItemsContainer) return;
+
+    if (!clearedList || clearedList.length === 0) {
+      historyItemsContainer.innerHTML = `
+        <p class="empty-history-note">No checkpoints cleared yet. Follow your clue and walk to the first location!</p>
+      `;
+      return;
+    }
+
+    let html = '';
+    clearedList.forEach((cp, idx) => {
+      const pos = cp.position || (idx + 1);
+      html += `
+        <div class="history-item-card">
+          <div class="history-item-title-row">
+            <span class="history-tick-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </span>
+            <span class="history-item-name">#${pos} ${escapeHtml(cp.name)}</span>
+          </div>
+          ${cp.story ? `<p class="history-item-story">${escapeHtml(cp.story)}</p>` : ''}
+        </div>
+      `;
+    });
+    historyItemsContainer.innerHTML = html;
+  }
+
+  function showUnlockModal(checkpointName, story, nextClue) {
+    if (unlockCpName) unlockCpName.textContent = checkpointName;
+
+    if (story && unlockStoryText && unlockStoryBox) {
+      unlockStoryText.textContent = story;
+      unlockStoryBox.hidden = false;
+    } else if (unlockStoryBox) {
+      unlockStoryBox.hidden = true;
+    }
+
+    if (unlockOverlay) unlockOverlay.hidden = false;
+
+    // Immediately update clue card if next clue is available
+    if (nextClue && clueTextEl) {
+      clueTextEl.textContent = nextClue;
+    }
+  }
+
+  // --- Elapsed Game Time Tick ---
+
+  function startElapsedTimer(startedAtMs) {
+    if (!startedAtMs || elapsedTimer) return;
+
+    const tick = () => {
+      const nowServer = Date.now() + (serverOffsetMs || 0);
+      const elapsedS = Math.max(0, Math.floor((nowServer - startedAtMs) / 1000));
+      const mins = String(Math.floor(elapsedS / 60)).padStart(2, '0');
+      const secs = String(elapsedS % 60).padStart(2, '0');
+      if (statusTimerEl) statusTimerEl.textContent = `${mins}:${secs}`;
+    };
+
+    tick();
+    elapsedTimer = setInterval(tick, 1000);
+  }
+
+  function stopElapsedTimer() {
+    if (elapsedTimer) {
+      clearInterval(elapsedTimer);
+      elapsedTimer = null;
+    }
+  }
+
+  // --- Background GPS Pinging ---
+
+  function startPinging() {
+    if (pingTimer) return;
+
+    pingTimer = setInterval(() => {
+      if (!currentGameState || currentGameState.game_state !== 'running' || currentGameState.finished) {
+        return;
+      }
+
+      const nowServer = Date.now() + (serverOffsetMs || 0);
+      if (currentGameState.started_at_ms && nowServer < currentGameState.started_at_ms) {
+        return;
+      }
+
+      if (!latestFix || latestFix.ts <= lastSentFixTs) {
+        return;
+      }
+
+      lastSentFixTs = latestFix.ts;
+
+      fetch('/api/ping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lat: latestFix.lat,
+          lng: latestFix.lng,
+          accuracy: latestFix.accuracy,
+          ts: latestFix.ts,
+        }),
+      })
+        .then(async (res) => {
+          hideReconnecting();
+          if (!res.ok) {
+            if (res.status === 401) {
+              handleUnauthorized();
+              return null;
+            }
+            return null;
+          }
+          return res.json();
+        })
+        .then((data) => {
+          if (!data) return;
+
+          if (data.status === 'unlocked') {
+            showUnlockModal(data.checkpoint_name || 'Checkpoint', data.story, data.next_clue);
+            // Refresh full state to sync cleared checkpoints & counts
+            fetchState();
+          } else if (data.status === 'weak_gps') {
+            setGpsStatus('GPS weak, move to open area', 'chip-weak');
+          } else if (data.status === 'completed') {
+            fetchState();
+          }
+        })
+        .catch(() => {
+          showReconnecting();
+        });
+    }, pingIntervalMs);
+  }
+
   // --- Session Restoration & Background Polling ---
+
+  function fetchState() {
+    return fetch('/api/state')
+      .then((res) => {
+        hideReconnecting();
+        if (res.ok) return res.json();
+        if (res.status === 401) {
+          handleUnauthorized();
+          return null;
+        }
+        return null;
+      })
+      .then((state) => {
+        if (state) updateGameState(state);
+      })
+      .catch(() => {
+        showReconnecting();
+      });
+  }
+
+  function handleUnauthorized() {
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+    }
+    if (pingTimer) {
+      clearInterval(pingTimer);
+      pingTimer = null;
+    }
+    stopElapsedTimer();
+
+    if (authOverlay) authOverlay.hidden = false;
+    if (lobbyOverlay) lobbyOverlay.hidden = true;
+    if (statusBar) statusBar.hidden = true;
+    if (clueCard) clueCard.hidden = true;
+    if (gameTabBar) gameTabBar.hidden = true;
+    if (viewTeam) viewTeam.hidden = true;
+  }
 
   function startPolling() {
     if (pollingTimer) clearInterval(pollingTimer);
     pollingTimer = setInterval(() => {
-      fetch('/api/state')
-        .then((res) => {
-          if (res.ok) return res.json();
-          if (res.status === 401) {
-            if (pollingTimer) {
-              clearInterval(pollingTimer);
-              pollingTimer = null;
-            }
-            if (authOverlay) authOverlay.hidden = false;
-            if (lobbyOverlay) lobbyOverlay.hidden = true;
-            if (gameOverlay) gameOverlay.hidden = true;
-          }
-          return null;
-        })
-        .then((state) => {
-          if (state) updateGameState(state);
-        })
-        .catch(() => {});
+      fetchState();
     }, pollIntervalMs);
   }
 
   function checkSession() {
     fetch('/api/state')
       .then((res) => {
+        hideReconnecting();
         if (res.ok) {
           return res.json().then((state) => {
             updateGameState(state);
@@ -379,22 +702,18 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         }
         if (res.status === 401) {
-          if (authOverlay) authOverlay.hidden = false;
-          if (lobbyOverlay) lobbyOverlay.hidden = true;
-          if (gameOverlay) gameOverlay.hidden = true;
+          handleUnauthorized();
         }
       })
       .catch(() => {
-        if (authOverlay) authOverlay.hidden = false;
-        if (lobbyOverlay) lobbyOverlay.hidden = true;
-        if (gameOverlay) gameOverlay.hidden = true;
+        handleUnauthorized();
       });
   }
 
-  // Always check server session on page load
+  // Always verify server session on page load
   checkSession();
 
-  // --- Map & GPS Initialization ---
+  // --- Map & Geolocation Initialization ---
 
   fetch('/api/config')
     .then((response) => {
@@ -404,18 +723,20 @@ document.addEventListener('DOMContentLoaded', () => {
       return response.json();
     })
     .then((cfg) => {
+      if (cfg.ping_interval_ms) pingIntervalMs = cfg.ping_interval_ms;
+      if (cfg.poll_interval_ms) pollIntervalMs = cfg.poll_interval_ms;
       initMap(cfg);
     })
     .catch((err) => {
-      setStatus('Failed to load map settings: ' + err.message, 'status-error');
+      setGpsStatus('Map config failed: ' + err.message, 'chip-weak');
     });
 
   function initMap(cfg) {
     const sw = L.latLng(cfg.bounds.sw.lat, cfg.bounds.sw.lng);
     const ne = L.latLng(cfg.bounds.ne.lat, cfg.bounds.ne.lng);
-    const campusBounds = L.latLngBounds(sw, ne);
+    campusBounds = L.latLngBounds(sw, ne);
 
-    const map = L.map('map', {
+    mapInstance = L.map('map', {
       center: [cfg.center.lat, cfg.center.lng],
       zoom: cfg.zoom.start,
       minZoom: cfg.zoom.min,
@@ -425,31 +746,39 @@ document.addEventListener('DOMContentLoaded', () => {
       zoomControl: false,
     });
 
-    // Place zoom control at bottom-right so it does not collide with UI buttons
-    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    // Place zoom control at bottom-right above tab bar
+    L.control.zoom({ position: 'bottomright' }).addTo(mapInstance);
 
     L.tileLayer(cfg.tile_url, {
       attribution: cfg.tile_attribution,
       minZoom: cfg.zoom.min,
       maxZoom: cfg.zoom.max,
-    }).addTo(map);
+    }).addTo(mapInstance);
+
+    // If game state was already fetched before map initialized, render cleared markers
+    if (currentGameState && currentGameState.cleared_checkpoints) {
+      renderClearedMarkers(currentGameState.cleared_checkpoints);
+    }
 
     if (!('geolocation' in navigator)) {
-      setStatus('Geolocation is not supported by your browser.', 'status-error');
+      setGpsStatus('Geolocation not supported', 'chip-weak');
       return;
     }
 
-    setStatus('Waiting for GPS...', 'status-waiting');
-
-    let locationDot = null;
-    let accuracyCircle = null;
-    let initialFixApplied = false;
+    setGpsStatus('Waiting for GPS...', 'chip-waiting');
 
     function onLocationSuccess(position) {
       const lat = position.coords.latitude;
       const lng = position.coords.longitude;
       const accuracy = position.coords.accuracy;
       const latLng = [lat, lng];
+
+      latestFix = {
+        lat,
+        lng,
+        accuracy,
+        ts: position.timestamp || Date.now(),
+      };
 
       if (!locationDot) {
         accuracyCircle = L.circle(latLng, {
@@ -459,7 +788,7 @@ document.addEventListener('DOMContentLoaded', () => {
           opacity: 0.6,
           fillColor: '#1a73e8',
           fillOpacity: 0.12,
-        }).addTo(map);
+        }).addTo(mapInstance);
 
         locationDot = L.circleMarker(latLng, {
           radius: 8,
@@ -468,7 +797,7 @@ document.addEventListener('DOMContentLoaded', () => {
           weight: 3,
           opacity: 1,
           fillOpacity: 1,
-        }).addTo(map);
+        }).addTo(mapInstance);
       } else {
         locationDot.setLatLng(latLng);
         accuracyCircle.setLatLng(latLng);
@@ -477,29 +806,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (!initialFixApplied) {
         if (campusBounds.contains(latLng)) {
-          map.panTo(latLng);
+          mapInstance.panTo(latLng);
         }
         initialFixApplied = true;
       }
 
-      const accMetres = Math.round(accuracy);
-      setStatus(`Accuracy: ${accMetres} m`, 'status-active');
+      // ACCURACY_LIMIT_M = 30.0m
+      if (accuracy <= 30.0) {
+        setGpsStatus('GPS good', 'chip-good');
+      } else {
+        setGpsStatus('GPS weak', 'chip-weak');
+      }
     }
 
     function onLocationError(error) {
       let message = 'Unable to determine position.';
       switch (error.code) {
         case error.PERMISSION_DENIED:
-          message = 'Location permission denied. Please allow access.';
+          message = 'Location permission denied.';
           break;
         case error.POSITION_UNAVAILABLE:
-          message = 'GPS position unavailable. Move outdoors.';
+          message = 'GPS unavailable. Move outdoors.';
           break;
         case error.TIMEOUT:
-          message = 'Waiting for GPS fix (timed out, retrying)...';
+          message = 'Waiting for GPS fix (timed out)...';
           break;
       }
-      setStatus(message, 'status-error');
+      setGpsStatus(message, 'chip-weak');
     }
 
     navigator.geolocation.watchPosition(
@@ -513,4 +846,3 @@ document.addEventListener('DOMContentLoaded', () => {
     );
   }
 });
-

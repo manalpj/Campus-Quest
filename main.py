@@ -567,6 +567,26 @@ def get_game_state(
     started_at = float(started_at_str) if started_at_str else None
     started_at_ms = int(started_at * 1000) if started_at else None
 
+    cleared_count, total_count = db.get_team_progress_counts(conn, team["id"])
+    cleared_rows = db.get_team_cleared_checkpoints(conn, team["id"])
+    cleared_checkpoints = [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "lat": row["lat"],
+            "lng": row["lng"],
+            "story": row["story"],
+            "position": row["position"],
+        }
+        for row in cleared_rows
+    ]
+
+    current_clue = None
+    if game_state == "running" and not team["finished_at"]:
+        next_cp = db.get_team_next_checkpoint(conn, team["id"])
+        if next_cp:
+            current_clue = next_cp["clue"]
+
     return {
         "game_state": game_state,
         "server_now_ms": int(now * 1000),
@@ -575,6 +595,11 @@ def get_game_state(
         "members": members,
         "code": team["code"],
         "device_status": "this phone is your team's device",
+        "cleared": cleared_count,
+        "total": total_count,
+        "current_clue": current_clue,
+        "cleared_checkpoints": cleared_checkpoints,
+        "finished": bool(team["finished_at"]),
     }
 
 
@@ -671,6 +696,7 @@ def ping_location(
 
         return {
             "status": "unlocked",
+            "checkpoint_name": next_cp["name"],
             "story": next_cp["story"],
             "next_clue": subsequent_cp["clue"] if subsequent_cp else None,
             "cleared": cleared_after,

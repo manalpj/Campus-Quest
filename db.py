@@ -582,3 +582,20 @@ def unlock_checkpoint(
         return True
 
 
+def get_team_cleared_checkpoints(conn: sqlite3.Connection, team_id: int) -> list[sqlite3.Row]:
+    """Retrieve all cleared checkpoints for a team in route order.
+
+    Returns rows with id, name, lat, lng, story, position, unlocked_at, elapsed_s.
+    """
+    return conn.execute(
+        """
+        SELECT c.id, c.name, c.lat, c.lng, c.story, c.position, p.unlocked_at, p.elapsed_s
+        FROM progress p
+        JOIN checkpoints c ON p.checkpoint_id = c.id
+        WHERE p.team_id = ?
+        ORDER BY c.position ASC, c.id ASC
+        """,
+        (team_id,),
+    ).fetchall()
+
+
