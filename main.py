@@ -851,7 +851,7 @@ def ping_location(
         is_last = (cleared_after >= total)
 
         # Alternating power-up award: 1st/3rd -> Radar, 2nd/4th -> Boost
-        awarded = game.determine_awarded_powerup(cleared_after)
+        awarded = game.award_for(cleared_after)
 
         db.unlock_checkpoint(
             conn=conn,

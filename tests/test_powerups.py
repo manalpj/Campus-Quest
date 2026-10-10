@@ -218,3 +218,57 @@ def test_alternating_powerup_awards_on_gps_unlocks(test_setup):
     st2 = client.get("/api/state").json()
     assert st2["radar_left"] == 1
     assert st2["boost_left"] == 1
+
+
+def test_boost_cannot_use_with_none_left(test_setup):
+    """Attempting to activate Radius boost with 0 remaining returns HTTP 400."""
+    client = test_setup["client"]
+
+    # Team starts with 0 boost
+    st = client.get("/api/state").json()
+    assert st["boost_left"] == 0
+
+    res = client.post("/api/powerup/boost")
+    assert res.status_code == 400
+    assert "no radius boost power-ups remaining" in res.json()["detail"].lower()
+
+
+def test_boost_not_inside_after_timer_ends(test_setup):
+    """Fix at distance between radius (30m) and radius+20m (50m) is NOT inside once boost timer expires."""
+    client = test_setup["client"]
+    conn = db.get_connection(test_setup["db_path"])
+
+    # Give team 1 boost
+    with db.write_tx(conn):
+        conn.execute("UPDATE teams SET boost_left = 1")
+
+    # Spot 1 is at 22.6928, 75.8676 (radius 30m).
+    # Delta 0.00036 is ~40m away (between 30m and 50m).
+    test_lat = 22.6928 + 0.00036
+    test_lng = 75.8676
+
+    # Activate boost
+    b_res = client.post("/api/powerup/boost")
+    assert b_res.status_code == 200
+
+    # 1 fix inside while boosted (streak = 1)
+    p1 = client.post("/api/ping", json={"lat": test_lat, "lng": test_lng, "accuracy": 10.0}).json()
+    assert p1["status"] == "searching"
+    team = db.get_team_by_id(conn, 1)
+    assert team["inside_streak"] == 1
+
+    # Simulate timer expiring: set boost_until in the past
+    with db.write_tx(conn):
+        conn.execute("UPDATE teams SET boost_until = ?", (time.time() - 5.0,))
+
+    # Ping at the same ~40m distance after timer expired -> evaluated against base 30m radius
+    # Since 40m > 30m, fix is outside: streak resets to 0, status remains searching
+    p2 = client.post("/api/ping", json={"lat": test_lat, "lng": test_lng, "accuracy": 10.0}).json()
+    assert p2["status"] == "searching"
+    team_after = db.get_team_by_id(conn, 1)
+    assert team_after["inside_streak"] == 0
+
+    # Second ping after timer expired: still outside, does NOT unlock
+    p3 = client.post("/api/ping", json={"lat": test_lat, "lng": test_lng, "accuracy": 10.0}).json()
+    assert p3["status"] == "searching"
+    assert "checkpoint_name" not in p3

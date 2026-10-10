@@ -249,3 +249,21 @@
 
 **Q2: Why do failed admin logins log only the client IP and result, rather than including the attempted username?**  
 **A2:** Users frequently mistype and accidentally enter their password into the username input field. Logging attempted usernames on failed logins is a known vulnerability that exposes actual passwords in audit logs. Recording only the client IP and failure status provides the necessary security telemetry for intrusion detection without risking credential leakage.
+
+---
+
+## Task 15: Radius boost power-up
+
+### 5-Line Interview Summary
+- Integrated the Radius Boost power-up into `/api/ping` using `compute_effective_radius`, expanding the target geofence by `BOOST_EXTRA_RADIUS_M` (+20m) when active.
+- Activated `game.award_for(cleared_after)` on checkpoint unlocks to award Radius Boost on even-numbered clears (2nd, 4th, ...), alternating with Radar.
+- Enforced server-side power-up state validation in `POST /api/powerup/boost` with `write_tx(BEGIN IMMEDIATE)`, rejecting activations with HTTP 400 when inventory is zero.
+- Upgraded the player Tray UI in `static/app.js` to display both remaining inventory counts and a live second-by-second countdown timer (e.g. `x0 (118s)`).
+- Added comprehensive automated tests verifying unlock detection at distance `[radius, radius + 20m]`, immediate exclusion after timer expiration, and refusal when none are left.
+
+### Interview Questions & Answers
+**Q1: Why is the radius boost (+20m) applied to the checkpoint radius on the server during `/api/ping` rather than having the client offset its coordinates?**  
+**A1:** Client-side GPS coordinates and math cannot be trusted; letting the client report a modified position or fake inside status opens the door to cheating. The client sends only its raw GPS fix (`lat`, `lng`, `accuracy`), while the server queries the team's `boost_until` timestamp against the server clock to compute `effective_radius = radius + 20.0`. This ensures that even if a client attempts to forge state, the server strictly decides whether the team is inside the geofence.
+
+**Q2: What happens if a team gets one inside fix while boosted, but the 120-second timer expires before their second fix?**  
+**A2:** Campus Quest requires two consecutive inside fixes (`STREAK_REQUIRED = 2`) to unlock a checkpoint. When the second fix arrives after `boost_until` has passed, the server measures distance against the base radius (e.g. 30m instead of 50m). Since the player is at ~40m, the fix is outside, `next_streak` resets the streak to 0, and the checkpoint does not unlock, ensuring strict adherence to the server clock.

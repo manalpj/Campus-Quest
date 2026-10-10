@@ -590,12 +590,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Radar power-up UI
     if (btnPowerupRadar && powerupRadarBadge) {
-      powerupRadarBadge.textContent = `x${state.radar_left || 0}`;
       btnPowerupRadar.disabled = (state.radar_left || 0) <= 0 && !state.radar_active;
       if (state.radar_active) {
+        powerupRadarBadge.textContent = `x${state.radar_left || 0} (${state.radar_left_s || 0}s)`;
         btnPowerupRadar.classList.add('active');
         if (hudRadarBadge) hudRadarBadge.hidden = false;
       } else {
+        powerupRadarBadge.textContent = `x${state.radar_left || 0}`;
         btnPowerupRadar.classList.remove('active');
         if (hudRadarBadge) hudRadarBadge.hidden = true;
       }
@@ -603,15 +604,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Boost power-up UI
     if (btnPowerupBoost && powerupBoostBadge) {
-      powerupBoostBadge.textContent = `x${state.boost_left || 0}`;
       btnPowerupBoost.disabled = (state.boost_left || 0) <= 0 && !state.boost_active;
       if (state.boost_active) {
+        powerupBoostBadge.textContent = `x${state.boost_left || 0} (${state.boost_left_s || 0}s)`;
         btnPowerupBoost.classList.add('active');
         if (hudBoostBadge) {
           hudBoostBadge.hidden = false;
           if (hudBoostSec) hudBoostSec.textContent = state.boost_left_s || 0;
         }
       } else {
+        powerupBoostBadge.textContent = `x${state.boost_left || 0}`;
         btnPowerupBoost.classList.remove('active');
         if (hudBoostBadge) hudBoostBadge.hidden = true;
       }
@@ -765,6 +767,33 @@ document.addEventListener('DOMContentLoaded', () => {
       const mins = String(Math.floor(elapsedS / 60)).padStart(2, '0');
       const secs = String(elapsedS % 60).padStart(2, '0');
       if (statusTimerEl) statusTimerEl.textContent = `${mins}:${secs}`;
+
+      // Decrement active power-up timers live every second
+      if (currentGameState) {
+        if (currentGameState.boost_active && typeof currentGameState.boost_left_s === 'number') {
+          currentGameState.boost_left_s = Math.max(0, currentGameState.boost_left_s - 1);
+          if (currentGameState.boost_left_s <= 0) {
+            currentGameState.boost_active = false;
+            if (btnPowerupBoost) btnPowerupBoost.classList.remove('active');
+            if (hudBoostBadge) hudBoostBadge.hidden = true;
+            if (powerupBoostBadge) powerupBoostBadge.textContent = `x${currentGameState.boost_left || 0}`;
+          } else {
+            if (hudBoostSec) hudBoostSec.textContent = currentGameState.boost_left_s;
+            if (powerupBoostBadge) powerupBoostBadge.textContent = `x${currentGameState.boost_left || 0} (${currentGameState.boost_left_s}s)`;
+          }
+        }
+        if (currentGameState.radar_active && typeof currentGameState.radar_left_s === 'number') {
+          currentGameState.radar_left_s = Math.max(0, currentGameState.radar_left_s - 1);
+          if (currentGameState.radar_left_s <= 0) {
+            currentGameState.radar_active = false;
+            if (btnPowerupRadar) btnPowerupRadar.classList.remove('active');
+            if (hudRadarBadge) hudRadarBadge.hidden = true;
+            if (powerupRadarBadge) powerupRadarBadge.textContent = `x${currentGameState.radar_left || 0}`;
+          } else {
+            if (powerupRadarBadge) powerupRadarBadge.textContent = `x${currentGameState.radar_left || 0} (${currentGameState.radar_left_s}s)`;
+          }
+        }
+      }
     };
 
     tick();

@@ -179,8 +179,8 @@ def rank_teams(rows: list[dict]) -> list[dict]:
     return result
 
 
-def determine_awarded_powerup(cleared_count: int) -> str | None:
-    """Determine which power-up is awarded when a checkpoint is cleared.
+def award_for(cleared_count: int) -> str | None:
+    """Determine power-up awarded for cleared checkpoint count.
 
     Rule: Teams start with none. Clearing a checkpoint awards exactly one,
     alternating Radar on odd clears (1st, 3rd, ...) and Radius boost on
@@ -189,6 +189,9 @@ def determine_awarded_powerup(cleared_count: int) -> str | None:
     if cleared_count <= 0:
         return None
     return "radar" if (cleared_count % 2 == 1) else "boost"
+
+
+determine_awarded_powerup = award_for
 
 
 def compute_effective_radius(
