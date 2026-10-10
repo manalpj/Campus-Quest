@@ -300,6 +300,32 @@
       </div>
     </div>
 
+    <!-- Force Clear Checkpoint Modal Dialog -->
+    <div id="clear-modal" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="clear-modal-title" hidden>
+      <div class="overlay-card gods-form-card">
+        <div class="gods-form-header">
+          <h2 id="clear-modal-title" class="gods-form-title">Clear Checkpoint</h2>
+          <button type="button" id="btn-clear-modal-close" class="gods-btn-text" aria-label="Close dialog">Cancel</button>
+        </div>
+        <p id="clear-team-name" class="modal-target-team"></p>
+        <p class="form-hint" style="margin-bottom: var(--space-12);">
+          Force-clears the team's current checkpoint. Records how = 'admin' with no time penalty and no power-up.
+        </p>
+        <div id="clear-modal-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+        <form id="clear-form" novalidate>
+          <input type="hidden" id="clear-team-id" value="">
+          <div class="form-group">
+            <label for="clear-reason-input">Reason <span class="form-hint">(required, 3 to 120 chars)</span></label>
+            <textarea id="clear-reason-input" rows="2" maxlength="120" minlength="3" required placeholder="e.g. Physical area blocked by campus construction"></textarea>
+          </div>
+          <div class="modal-buttons-row">
+            <button type="button" id="btn-clear-cancel" class="gods-btn gods-btn-secondary">Cancel</button>
+            <button type="submit" id="btn-clear-submit" class="gods-btn gods-btn-primary">Clear Checkpoint</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Delete Team Confirm Modal -->
     <div id="delete-modal" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title" hidden>
       <div class="overlay-card gods-form-card">

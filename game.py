@@ -24,6 +24,8 @@ EVENT_SPEED_REJECTED = "speed_rejected"
 EVENT_DEVICE_RELEASED = "device_released"
 EVENT_TIME_ADJUSTED = "time_adjusted"
 EVENT_TEAM_DELETED = "team_deleted"
+EVENT_CHECKPOINT_SKIPPED = "checkpoint_skipped"
+EVENT_CHECKPOINT_FORCE_CLEARED = "checkpoint_force_cleared"
 
 EVENT_TYPES = frozenset({
     EVENT_TEAM_REGISTERED,
@@ -40,7 +42,14 @@ EVENT_TYPES = frozenset({
     EVENT_DEVICE_RELEASED,
     EVENT_TIME_ADJUSTED,
     EVENT_TEAM_DELETED,
+    EVENT_CHECKPOINT_SKIPPED,
+    EVENT_CHECKPOINT_FORCE_CLEARED,
 })
+
+
+def is_skip_allowed(elapsed_on_checkpoint_s: float, wait_limit_s: int = 600) -> bool:
+    """Return True if team has spent at least wait_limit_s on current checkpoint."""
+    return elapsed_on_checkpoint_s >= float(wait_limit_s)
 
 
 def haversine_m(lat1: float, lng1: float, lat2: float, lng2: float) -> float:

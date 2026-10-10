@@ -1285,6 +1285,38 @@ body {
   color: var(--text);
 }
 
+.clue-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-8);
+}
+
+.btn-skip-clue {
+  min-height: 44px;
+  padding: var(--space-8) var(--space-12);
+  background-color: transparent;
+  color: var(--attention);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-skip-clue:hover {
+  background-color: var(--attention-bg);
+  border-color: #f9e2ae;
+}
+
+.btn-skip-clue:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* Bottom Game Navigation Tab Bar */
 .game-tab-bar {
   position: absolute;

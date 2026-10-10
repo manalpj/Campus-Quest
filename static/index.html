@@ -80,6 +80,11 @@
         <span class="hint-tag">Hint Revealed (+3m)</span>
         <p id="clue-hint-text" class="clue-hint-text"></p>
       </div>
+      <div class="clue-card-actions">
+        <button type="button" id="btn-skip-clue" class="btn-skip-clue" hidden aria-label="Skip current checkpoint (+10 min penalty)">
+          Skip Checkpoint (+10m)
+        </button>
+      </div>
     </section>
 
     <!-- Bottom Navigation Tab Bar (Map, Leaderboard, Team) -->
@@ -365,6 +370,21 @@
       <div class="modal-buttons-row">
         <button type="button" id="btn-hint-cancel" class="btn btn-secondary">Cancel</button>
         <button type="button" id="btn-hint-confirm" class="btn btn-primary">Reveal (+3m)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skip Confirmation Modal -->
+  <div id="skip-confirm-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="skip-confirm-title" hidden>
+    <div class="overlay-card hint-modal-card">
+      <h2 id="skip-confirm-title" class="overlay-title">Skip Checkpoint?</h2>
+      <p class="hint-modal-desc">
+        Skipping this checkpoint adds a <strong>+10 minutes</strong> (+600s) penalty to your team's total adjusted time.
+        You will <strong>not</strong> receive any power-ups or story, and you will advance directly to the next clue.
+      </p>
+      <div class="modal-buttons-row">
+        <button type="button" id="btn-skip-cancel" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="btn-skip-confirm" class="btn btn-primary">Confirm Skip (+10m)</button>
       </div>
     </div>
   </div>

@@ -340,6 +340,25 @@
 **Q2: What happens to the countdown timer and checkpoint locks when the game is reset back to "setup"?**  
 **A2:** In `setup` state, `started_at` is cleared to empty (`None` in API responses), which stops any active countdown banner. Crucially, returning to `setup` releases the strict live-game checkpoint locking rules, allowing organizers to once again edit checkpoint coordinates, adjust radii, add new checkpoints, or reorder the route before starting the next quest.
 
+---
+
+## Task 18: Stuck-team recovery (Player Skip and Admin Force-clear)
+
+### 5-Line Interview Summary
+- Added `POST /api/skip` allowing players to skip their active checkpoint only after spending at least `SKIP_WAIT_S` (default 600s) on it.
+- Applied `SKIP_PENALTY_S` (default 600s) to `teams.penalty_s`, recorded progress with `how = 'skipped'`, awarded no power-ups, returned no story, and advanced to the next clue.
+- Built `POST /api/gods/teams/{id}/clear` requiring admin authentication and a logged reason (3 to 120 chars) to clear a checkpoint with `how = 'admin'` and zero penalty.
+- Enforced concurrency safety with `write_tx()` (`BEGIN IMMEDIATE`) and SQLite's `PRIMARY KEY (team_id, checkpoint_id)` constraint so double clicks can never clear twice.
+- Integrated UI controls: a Skip button on the player clue card unlocked after wait time with a penalty confirmation modal, and a "Clear Checkpoint" button in the admin Teams table.
+
+### Interview Questions & Answers
+**Q1: How does the server calculate how long a team has spent on their current checkpoint to decide if Skip is allowed?**  
+**A1:** The server queries `MAX(unlocked_at)` from `progress` for the team. If the team has cleared earlier checkpoints, that timestamp marks the start of the current one; if they are on the very first checkpoint, the server uses `started_at` from `settings`. Subtracting that start time from the authoritative server clock (`time.time()`) gives elapsed seconds on that spot, preventing players from manipulating client timestamps to bypass the wait rule.
+
+**Q2: Why does skipping award no power-ups and return no story, while GPS unlock awards both?**  
+**A2:** Skip is a recovery mechanism for stuck teams, not a normal accomplishment. Checkpoint stories are narrative rewards for physically reaching a campus landmark, and power-ups (alternating Radar and Radius boost) are earned milestone rewards for genuine geofenced unlocks. Withholding them maintains competitive integrity and incentivizes physical exploration, while adding the 10-minute penalty keeps the leaderboard fair.
+
+
 
 
 

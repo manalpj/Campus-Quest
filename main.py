@@ -116,6 +116,20 @@ class TeamAdjustRequest(BaseModel):
         return trimmed
 
 
+class TeamClearRequest(BaseModel):
+    """Validated input model for administrator force-clearing a checkpoint."""
+
+    reason: str = Field(..., min_length=3, max_length=120, description="Reason for force-clearing (3 to 120 chars)")
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, v: str) -> str:
+        trimmed = v.strip()
+        if len(trimmed) < 3 or len(trimmed) > 120:
+            raise ValueError("Reason must be between 3 and 120 characters")
+        return trimmed
+
+
 class CheckpointCreateRequest(BaseModel):
     """Validated input model for creating a route checkpoint."""
 
@@ -621,6 +635,63 @@ def adjust_gods_team_time(
     }
 
 
+@app.post("/api/gods/teams/{team_id}/clear")
+def force_clear_gods_team_checkpoint(
+    team_id: int,
+    body: TeamClearRequest,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Admin force-clears the current checkpoint for a team with a required reason.
+
+    No penalty added, no power-up awarded, how='admin'.
+    """
+    team = db.get_team_by_id(conn, team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="Team not found")
+
+    if team["finished_at"]:
+        raise HTTPException(status_code=409, detail="Team has already finished the quest")
+
+    next_cp = db.get_team_next_checkpoint(conn, team_id)
+    if not next_cp:
+        raise HTTPException(status_code=409, detail="No active checkpoint remaining for this team")
+
+    started_at_str = db.get_setting(conn, "started_at")
+    started_at = float(started_at_str) if started_at_str else time.time()
+    now = time.time()
+    elapsed_s = max(0, int(now - started_at))
+
+    cleared_before, total = db.get_team_progress_counts(conn, team_id)
+    cleared_after = cleared_before + 1
+    is_last = (cleared_after >= total)
+
+    success = db.admin_force_clear_checkpoint(
+        conn=conn,
+        team_id=team_id,
+        checkpoint_id=next_cp["id"],
+        unlocked_at=now,
+        elapsed_s=elapsed_s,
+        reason=body.reason,
+        is_last=is_last,
+    )
+    if not success:
+        raise HTTPException(status_code=409, detail="Checkpoint was already cleared")
+
+    invalidate_leaderboard_cache()
+
+    subsequent_cp = db.get_team_next_checkpoint(conn, team_id)
+    return {
+        "status": "ok",
+        "team_id": team_id,
+        "checkpoint_id": next_cp["id"],
+        "checkpoint_name": next_cp["name"],
+        "cleared": cleared_after,
+        "total": total,
+        "next_clue": subsequent_cp["clue"] if subsequent_cp else None,
+    }
+
+
 @app.delete("/api/gods/teams/{team_id}")
 def delete_gods_team(
     team_id: int,
@@ -752,11 +823,20 @@ def get_game_state(
 
     current_clue = None
     active_hint = None
+    can_skip = False
+    checkpoint_started_at_ms = None
+    skip_wait_s = config.SKIP_WAIT_S
+    skip_penalty_s = config.SKIP_PENALTY_S
     if game_state == "running" and not team_row["finished_at"]:
         next_cp = db.get_team_next_checkpoint(conn, team["id"])
         if next_cp:
             current_clue = next_cp["clue"]
             active_hint = db.get_active_hint_for_team(conn, team["id"], next_cp["id"])
+            if started_at is not None:
+                cp_start_ts = db.get_team_current_checkpoint_start(conn, team["id"], started_at)
+                checkpoint_started_at_ms = int(cp_start_ts * 1000)
+                elapsed_cp_s = max(0.0, now - cp_start_ts)
+                can_skip = game.is_skip_allowed(elapsed_cp_s, config.SKIP_WAIT_S)
 
     radar_active = game.is_powerup_active(team_row["radar_until"], now)
     radar_left_s = max(0, int(team_row["radar_until"] - now)) if radar_active else 0
@@ -785,6 +865,86 @@ def get_game_state(
         "bonus_s": team_row["bonus_s"],
         "cleared_checkpoints": cleared_checkpoints,
         "finished": bool(team_row["finished_at"]),
+        "can_skip": can_skip,
+        "checkpoint_started_at_ms": checkpoint_started_at_ms,
+        "skip_wait_s": skip_wait_s,
+        "skip_penalty_s": skip_penalty_s,
+    }
+
+
+@app.post("/api/skip")
+def skip_current_checkpoint(
+    team: sqlite3.Row = Depends(auth.require_team_device),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Skip the current checkpoint after waiting at least SKIP_WAIT_S.
+
+    Adds SKIP_PENALTY_S to penalty, records progress with how='skipped',
+    awards NO power-up, returns no story, and returns the next clue.
+    """
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    if game_state != "running":
+        raise HTTPException(status_code=409, detail="Game is not running")
+
+    started_at_str = db.get_setting(conn, "started_at")
+    if not started_at_str:
+        raise HTTPException(status_code=409, detail="Game has not started yet")
+
+    try:
+        started_at = float(started_at_str)
+    except ValueError:
+        raise HTTPException(status_code=409, detail="Invalid started_at setting")
+
+    now = time.time()
+    if now < started_at:
+        raise HTTPException(status_code=409, detail="Game countdown has not finished yet")
+
+    fresh_team = db.get_team_by_id(conn, team["id"]) or team
+    if fresh_team["finished_at"]:
+        raise HTTPException(status_code=409, detail="Team has already finished the quest")
+
+    next_cp = db.get_team_next_checkpoint(conn, team["id"])
+    if not next_cp:
+        raise HTTPException(status_code=409, detail="No active checkpoint remaining")
+
+    cp_start_ts = db.get_team_current_checkpoint_start(conn, team["id"], started_at)
+    elapsed_cp_s = max(0.0, now - cp_start_ts)
+    if not game.is_skip_allowed(elapsed_cp_s, config.SKIP_WAIT_S):
+        wait_remaining_s = int(config.SKIP_WAIT_S - elapsed_cp_s)
+        raise HTTPException(
+            status_code=403,
+            detail=f"Skip is not available yet. Must wait at least {config.SKIP_WAIT_S}s on the current checkpoint ({wait_remaining_s}s remaining).",
+        )
+
+    cleared_before, total = db.get_team_progress_counts(conn, team["id"])
+    cleared_after = cleared_before + 1
+    is_last = (cleared_after >= total)
+    elapsed_s = max(0, int(now - started_at))
+
+    success, new_penalty_s = db.skip_checkpoint(
+        conn=conn,
+        team_id=team["id"],
+        checkpoint_id=next_cp["id"],
+        unlocked_at=now,
+        elapsed_s=elapsed_s,
+        penalty_s=config.SKIP_PENALTY_S,
+        is_last=is_last,
+    )
+    if not success:
+        raise HTTPException(status_code=409, detail="Checkpoint was already cleared")
+
+    invalidate_leaderboard_cache()
+
+    subsequent_cp = db.get_team_next_checkpoint(conn, team["id"])
+    return {
+        "status": "skipped",
+        "checkpoint_name": next_cp["name"],
+        "story": None,
+        "next_clue": subsequent_cp["clue"] if subsequent_cp else None,
+        "cleared": cleared_after,
+        "total": total,
+        "penalty_s": new_penalty_s,
+        "penalty_added_s": config.SKIP_PENALTY_S,
     }
 
 

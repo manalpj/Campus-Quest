@@ -100,6 +100,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnHintConfirm = document.getElementById('btn-hint-confirm');
   const powerupToast = document.getElementById('powerup-toast');
 
+  const btnSkipClue = document.getElementById('btn-skip-clue');
+  const skipConfirmOverlay = document.getElementById('skip-confirm-overlay');
+  const btnSkipCancel = document.getElementById('btn-skip-cancel');
+  const btnSkipConfirm = document.getElementById('btn-skip-confirm');
+
   // Application & Map State
   let serverOffsetMs = null;
   let countdownInterval = null;
@@ -619,6 +624,11 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
+    // Skip checkpoint UI
+    if (btnSkipClue) {
+      btnSkipClue.hidden = Boolean(state.finished || !state.can_skip);
+    }
+
     // Start elapsed timer driven by server start time
     if (!state.finished) {
       startElapsedTimer(state.started_at_ms);
@@ -956,6 +966,53 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- Skip Checkpoint Handlers ---
+
+  function handleSkipCheckpoint() {
+    if (btnSkipConfirm) btnSkipConfirm.disabled = true;
+    fetch('/api/skip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(body.detail || 'Failed to skip checkpoint');
+        }
+        return body;
+      })
+      .then((data) => {
+        showPowerupToast('⏭️ Checkpoint skipped (+10 min penalty added)');
+        if (skipConfirmOverlay) skipConfirmOverlay.hidden = true;
+        if (btnSkipClue) btnSkipClue.hidden = true;
+        fetchState();
+      })
+      .catch((err) => {
+        showPowerupToast(err.message || 'Skip unavailable');
+      })
+      .finally(() => {
+        if (btnSkipConfirm) btnSkipConfirm.disabled = false;
+      });
+  }
+
+  if (btnSkipClue) {
+    btnSkipClue.addEventListener('click', () => {
+      if (skipConfirmOverlay) skipConfirmOverlay.hidden = false;
+    });
+  }
+
+  if (btnSkipCancel) {
+    btnSkipCancel.addEventListener('click', () => {
+      if (skipConfirmOverlay) skipConfirmOverlay.hidden = true;
+    });
+  }
+
+  if (btnSkipConfirm) {
+    btnSkipConfirm.addEventListener('click', () => {
+      handleSkipCheckpoint();
+    });
+  }
+
   // --- Session Restoration & Background Polling ---
 
   function fetchState() {
@@ -994,6 +1051,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (clueCard) clueCard.hidden = true;
     if (powerupTray) powerupTray.hidden = true;
     if (hintConfirmOverlay) hintConfirmOverlay.hidden = true;
+    if (skipConfirmOverlay) skipConfirmOverlay.hidden = true;
+    if (btnSkipClue) btnSkipClue.hidden = true;
     if (clueHintBox) clueHintBox.hidden = true;
     if (gameTabBar) gameTabBar.hidden = true;
     if (viewTeam) viewTeam.hidden = true;

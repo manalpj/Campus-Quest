@@ -631,6 +631,149 @@ def unlock_checkpoint(
         return True
 
 
+def get_team_current_checkpoint_start(
+    conn: sqlite3.Connection,
+    team_id: int,
+    started_at_ts: float,
+) -> float:
+    """Return timestamp when the team started their current checkpoint.
+
+    If the team has cleared checkpoints, this is the unlocked_at timestamp
+    of their most recent unlock. Otherwise, it is the game's started_at timestamp.
+    """
+    row = conn.execute(
+        "SELECT MAX(unlocked_at) AS last_unlock FROM progress WHERE team_id = ?",
+        (team_id,),
+    ).fetchone()
+    if row and row["last_unlock"] is not None:
+        return float(row["last_unlock"])
+    return started_at_ts
+
+
+def skip_checkpoint(
+    conn: sqlite3.Connection,
+    team_id: int,
+    checkpoint_id: int,
+    unlocked_at: float,
+    elapsed_s: int,
+    penalty_s: int,
+    is_last: bool,
+) -> tuple[bool, int]:
+    """Record skipped checkpoint in progress, apply skip penalty, and reset streak.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    Guaranteed atomic: checks for existing progress row to prevent double-skipping or double-clearing.
+    Awards NO power-up.
+    Returns (success, new_penalty_s).
+    """
+    with write_tx(conn):
+        existing = conn.execute(
+            "SELECT 1 FROM progress WHERE team_id = ? AND checkpoint_id = ?",
+            (team_id, checkpoint_id),
+        ).fetchone()
+        if existing:
+            team_row = conn.execute("SELECT penalty_s FROM teams WHERE id = ?", (team_id,)).fetchone()
+            return False, team_row["penalty_s"] if team_row else 0
+
+        conn.execute(
+            """
+            INSERT INTO progress (team_id, checkpoint_id, unlocked_at, elapsed_s, how)
+            VALUES (?, ?, ?, ?, 'skipped')
+            """,
+            (team_id, checkpoint_id, unlocked_at, elapsed_s),
+        )
+
+        if is_last:
+            conn.execute(
+                """
+                UPDATE teams
+                SET inside_streak = 0, last_seen = ?, penalty_s = penalty_s + ?, finished_at = ?
+                WHERE id = ?
+                """,
+                (unlocked_at, penalty_s, unlocked_at, team_id),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE teams
+                SET inside_streak = 0, last_seen = ?, penalty_s = penalty_s + ?
+                WHERE id = ?
+                """,
+                (unlocked_at, penalty_s, team_id),
+            )
+
+        team_row = conn.execute("SELECT penalty_s FROM teams WHERE id = ?", (team_id,)).fetchone()
+        new_penalty = team_row["penalty_s"] if team_row else penalty_s
+
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_CHECKPOINT_SKIPPED,
+            f"checkpoint_id={checkpoint_id} penalty_s={penalty_s}",
+        )
+        return True, new_penalty
+
+
+def admin_force_clear_checkpoint(
+    conn: sqlite3.Connection,
+    team_id: int,
+    checkpoint_id: int,
+    unlocked_at: float,
+    elapsed_s: int,
+    reason: str,
+    is_last: bool,
+) -> bool:
+    """Force-clear the team's current checkpoint by admin with no penalty or power-up.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    Guaranteed atomic: checks for existing progress row.
+    Logs EVENT_CHECKPOINT_FORCE_CLEARED with mandatory reason.
+    Returns True if successfully cleared, False if already cleared.
+    """
+    with write_tx(conn):
+        existing = conn.execute(
+            "SELECT 1 FROM progress WHERE team_id = ? AND checkpoint_id = ?",
+            (team_id, checkpoint_id),
+        ).fetchone()
+        if existing:
+            return False
+
+        conn.execute(
+            """
+            INSERT INTO progress (team_id, checkpoint_id, unlocked_at, elapsed_s, how)
+            VALUES (?, ?, ?, ?, 'admin')
+            """,
+            (team_id, checkpoint_id, unlocked_at, elapsed_s),
+        )
+
+        if is_last:
+            conn.execute(
+                """
+                UPDATE teams
+                SET inside_streak = 0, finished_at = ?
+                WHERE id = ?
+                """,
+                (unlocked_at, team_id),
+            )
+        else:
+            conn.execute(
+                """
+                UPDATE teams
+                SET inside_streak = 0
+                WHERE id = ?
+                """,
+                (team_id,),
+            )
+
+        log_event(
+            conn,
+            team_id,
+            game.EVENT_CHECKPOINT_FORCE_CLEARED,
+            f"checkpoint_id={checkpoint_id} reason={reason}",
+        )
+        return True
+
+
 def use_hint(
     conn: sqlite3.Connection,
     team_id: int,

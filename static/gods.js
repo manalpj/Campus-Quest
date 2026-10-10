@@ -50,6 +50,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnDeleteModalClose = document.getElementById("btn-delete-modal-close");
   const btnDeleteConfirm = document.getElementById("btn-delete-confirm");
 
+  // Elements: Clear Checkpoint Modal
+  const clearModal = document.getElementById("clear-modal");
+  const clearTeamName = document.getElementById("clear-team-name");
+  const clearModalAlert = document.getElementById("clear-modal-alert");
+  const clearForm = document.getElementById("clear-form");
+  const clearTeamId = document.getElementById("clear-team-id");
+  const clearReasonInput = document.getElementById("clear-reason-input");
+  const btnClearCancel = document.getElementById("btn-clear-cancel");
+  const btnClearModalClose = document.getElementById("btn-clear-modal-close");
+
   // Elements: Game Tab
   const gameAlert = document.getElementById("gods-game-alert");
   const gameStateBadge = document.getElementById("game-state-badge");
@@ -1313,6 +1323,19 @@ document.addEventListener("DOMContentLoaded", () => {
       btnAdjust.addEventListener("click", () => openAdjustModal(t));
       tdActions.appendChild(btnAdjust);
 
+      // Clear Checkpoint button
+      const btnClearCp = document.createElement("button");
+      btnClearCp.type = "button";
+      btnClearCp.className = "gods-btn gods-btn-secondary gods-btn-sm";
+      btnClearCp.textContent = "Clear Checkpoint";
+      const isFinished = Boolean(t.finished || (t.total > 0 && t.cleared >= t.total));
+      btnClearCp.disabled = isFinished;
+      if (isFinished) {
+        btnClearCp.title = "Team has already completed all checkpoints";
+      }
+      btnClearCp.addEventListener("click", () => openClearModal(t));
+      tdActions.appendChild(btnClearCp);
+
       // Delete Team button
       const btnDelete = document.createElement("button");
       btnDelete.type = "button";
@@ -1456,6 +1479,60 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function openClearModal(team) {
+    if (!clearModal) return;
+    if (clearModalAlert) clearModalAlert.hidden = true;
+    if (clearTeamId) clearTeamId.value = team.id;
+    if (clearTeamName) clearTeamName.textContent = `Team: ${team.name} (${team.code})`;
+    if (clearReasonInput) clearReasonInput.value = "";
+    clearModal.hidden = false;
+    if (clearReasonInput) clearReasonInput.focus();
+  }
+
+  function closeClearModal() {
+    if (!clearModal) return;
+    clearModal.hidden = true;
+    if (clearForm) clearForm.reset();
+  }
+
+  async function handleClearFormSubmit(e) {
+    e.preventDefault();
+    if (!clearModalAlert || !clearTeamId || !clearReasonInput) return;
+
+    clearModalAlert.hidden = true;
+    const teamId = parseInt(clearTeamId.value, 10);
+    const reason = clearReasonInput.value.trim();
+
+    if (reason.length < 3 || reason.length > 120) {
+      clearModalAlert.textContent = "Reason is required (3 to 120 characters).";
+      clearModalAlert.hidden = false;
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/gods/teams/${teamId}/clear`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({ reason }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to force-clear checkpoint.");
+      }
+
+      closeClearModal();
+      showTeamsAlert(`Successfully cleared checkpoint for "${teamsData.find(t => t.id === teamId)?.name || 'team'}" (Reason: "${reason}").`, false);
+      await loadAdminTeams();
+    } catch (err) {
+      clearModalAlert.textContent = err.message;
+      clearModalAlert.hidden = false;
+    }
+  }
+
   function escapeHtml(str) {
     if (!str) return "";
     return str
@@ -1526,10 +1603,26 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  if (clearForm) {
+    clearForm.addEventListener("submit", handleClearFormSubmit);
+  }
+  if (btnClearCancel) {
+    btnClearCancel.addEventListener("click", closeClearModal);
+  }
+  if (btnClearModalClose) {
+    btnClearModalClose.addEventListener("click", closeClearModal);
+  }
+  if (clearModal) {
+    clearModal.addEventListener("click", (e) => {
+      if (e.target === clearModal) closeClearModal();
+    });
+  }
+
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       if (adjustModal && !adjustModal.hidden) closeAdjustModal();
       if (deleteModal && !deleteModal.hidden) closeDeleteModal();
+      if (clearModal && !clearModal.hidden) closeClearModal();
     }
   });
 
