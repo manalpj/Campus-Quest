@@ -43,6 +43,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const leaderboardTbody = document.getElementById('leaderboard-tbody');
   const btnCloseLeaderboard = document.getElementById('btn-close-leaderboard');
 
+  // Rules & FAQ View Panel elements
+  const tabGameRules = document.getElementById('tab-game-rules');
+  const viewRules = document.getElementById('view-rules');
+  const rulesListContainer = document.getElementById('rules-list-container');
+  const faqListContainer = document.getElementById('faq-list-container');
+  const btnCloseRules = document.getElementById('btn-close-rules');
+  const btnLobbyOpenRules = document.getElementById('btn-lobby-open-rules');
+  const testModeBanner = document.getElementById('test-mode-banner');
+
   // Finish Screen elements
   const finishOverlay = document.getElementById('finish-overlay');
   const finishFinalRank = document.getElementById('finish-final-rank');
@@ -445,6 +454,116 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Bottom Tabs & Overlay Navigation ---
 
+  let isTestModeActive = false;
+  let cachedRules = null;
+
+  function setTestMode(active) {
+    isTestModeActive = active;
+    if (testModeBanner) {
+      testModeBanner.hidden = !active;
+    }
+  }
+
+  function fetchRules(force = false) {
+    if (cachedRules && !force) {
+      renderRules(cachedRules);
+      return;
+    }
+    fetch('/api/rules')
+      .then((res) => {
+        if (!res.ok) throw new Error('Failed to load rules');
+        return res.json();
+      })
+      .then((data) => {
+        cachedRules = data;
+        renderRules(data);
+      })
+      .catch((err) => {
+        if (rulesListContainer) {
+          rulesListContainer.innerHTML = `<p class="field-hint error-hint">${escapeHtml(err.message)}</p>`;
+        }
+      });
+  }
+
+  function renderRules(data) {
+    if (rulesListContainer && Array.isArray(data.rules)) {
+      rulesListContainer.innerHTML = data.rules.map((r) => `
+        <article class="rule-card">
+          <h4 class="rule-card-title">${escapeHtml(r.title)}</h4>
+          <p class="rule-card-text">${escapeHtml(r.text)}</p>
+        </article>
+      `).join('');
+    }
+    if (faqListContainer && Array.isArray(data.faq)) {
+      faqListContainer.innerHTML = data.faq.map((item) => `
+        <details class="faq-item">
+          <summary class="faq-question">
+            <span>${escapeHtml(item.q)}</span>
+          </summary>
+          <div class="faq-answer">
+            <p>${escapeHtml(item.a)}</p>
+          </div>
+        </details>
+      `).join('');
+    }
+  }
+
+  function sendSimulatedPing(lat, lng) {
+    if (!currentGameState || currentGameState.game_state !== 'running' || currentGameState.finished) {
+      showPowerupToast('Game is not running');
+      return;
+    }
+    const testFix = {
+      lat: Number(lat.toFixed(6)),
+      lng: Number(lng.toFixed(6)),
+      accuracy: 5.0,
+      ts: Date.now() / 1000,
+      test: true,
+    };
+
+    updatePlayerLocation(testFix.lat, testFix.lng, testFix.accuracy);
+
+    fetch('/api/ping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testFix),
+    })
+      .then(async (res) => {
+        hideReconnecting();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (res.status === 403) {
+            showPowerupToast('⚠️ Test mode refused by server (403)');
+            setTestMode(false);
+          } else {
+            showPowerupToast(`Ping error: ${data.detail || res.status}`);
+          }
+          return null;
+        }
+        return data;
+      })
+      .then((data) => {
+        if (!data) return;
+        if (data.status === 'unlocked') {
+          showUnlockModal(data.checkpoint_name || 'Checkpoint', data.story, data.next_clue);
+          if (data.awarded_powerup) {
+            const label = data.awarded_powerup === 'radar' ? 'Radar' : 'Radius Boost';
+            showPowerupToast(`🎉 Awarded 1 ${label}!`);
+          }
+          fetchState();
+        } else if (data.status === 'searching') {
+          showPowerupToast('Simulated fix processed');
+          setGpsStatus('Simulated GPS fix sent', 'chip-good');
+        } else if (data.status === 'completed') {
+          fetchState();
+          showFinishScreen();
+        }
+      })
+      .catch((err) => {
+        showPowerupToast(`Network error: ${err.message}`);
+      });
+  }
+
   function switchTab(target) {
     if (tabGameMap) {
       tabGameMap.classList.toggle('active', target === 'map');
@@ -458,8 +577,18 @@ document.addEventListener('DOMContentLoaded', () => {
       tabGameTeam.classList.toggle('active', target === 'team');
       tabGameTeam.setAttribute('aria-selected', target === 'team' ? 'true' : 'false');
     }
+    if (tabGameRules) {
+      tabGameRules.classList.toggle('active', target === 'rules');
+      tabGameRules.setAttribute('aria-selected', target === 'rules' ? 'true' : 'false');
+    }
 
     if (viewTeam) viewTeam.hidden = (target !== 'team');
+    if (viewRules) {
+      viewRules.hidden = (target !== 'rules');
+      if (target === 'rules') {
+        fetchRules();
+      }
+    }
     if (viewLeaderboard) {
       viewLeaderboard.hidden = (target !== 'leaderboard');
       if (target === 'leaderboard') {
@@ -480,6 +609,10 @@ document.addEventListener('DOMContentLoaded', () => {
     tabGameTeam.addEventListener('click', () => switchTab('team'));
   }
 
+  if (tabGameRules) {
+    tabGameRules.addEventListener('click', () => switchTab('rules'));
+  }
+
   if (btnLeaderboard) {
     btnLeaderboard.addEventListener('click', () => switchTab('leaderboard'));
   }
@@ -490,6 +623,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnCloseTeam) {
     btnCloseTeam.addEventListener('click', () => switchTab('map'));
+  }
+
+  if (btnCloseRules) {
+    btnCloseRules.addEventListener('click', () => switchTab('map'));
+  }
+
+  if (btnLobbyOpenRules) {
+    btnLobbyOpenRules.addEventListener('click', () => switchTab('rules'));
   }
 
   if (btnNav && navOverlay) {
@@ -581,6 +722,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!state) return;
     currentGameState = state;
     hideReconnecting();
+    setTestMode(Boolean(state.test_mode));
 
     // Compute clock offset once so client relies strictly on server time
     if (serverOffsetMs === null && typeof state.server_now_ms === 'number') {
@@ -1229,6 +1371,7 @@ document.addEventListener('DOMContentLoaded', () => {
     .then((cfg) => {
       if (cfg.ping_interval_ms) pingIntervalMs = cfg.ping_interval_ms;
       if (cfg.poll_interval_ms) pollIntervalMs = cfg.poll_interval_ms;
+      if (typeof cfg.test_mode === 'boolean') setTestMode(cfg.test_mode);
       initMap(cfg);
     })
     .catch((err) => {
@@ -1258,6 +1401,13 @@ document.addEventListener('DOMContentLoaded', () => {
       minZoom: cfg.zoom.min,
       maxZoom: cfg.zoom.max,
     }).addTo(mapInstance);
+
+    // Map click in test mode: simulates player location ping
+    mapInstance.on('click', (e) => {
+      if (isTestModeActive) {
+        sendSimulatedPing(e.latlng.lat, e.latlng.lng);
+      }
+    });
 
     // If game state was already fetched before map initialized, render cleared markers
     if (currentGameState && currentGameState.cleared_checkpoints) {

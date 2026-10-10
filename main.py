@@ -92,6 +92,13 @@ class PingRequest(BaseModel):
     lng: float = Field(..., ge=-180.0, le=180.0, description="Longitude coordinate (-180 to 180)")
     accuracy: float = Field(..., ge=0.0, le=10000.0, description="GPS accuracy in metres (0 to 10000)")
     ts: Optional[float] = Field(default=None, description="Optional client timestamp")
+    test: bool = Field(default=False, description="Flag indicating simulated/test location fix")
+
+
+class TestModeToggleRequest(BaseModel):
+    """Validated input model for toggling location test mode."""
+
+    enabled: bool = Field(..., description="Whether test mode should be enabled or disabled")
 
 
 class TeamAdjustRequest(BaseModel):
@@ -227,12 +234,85 @@ def healthz():
 
 
 @app.get("/api/config")
-def get_public_config():
-    """Return only safe, public settings needed by the client map and UI.
+def get_public_config(conn: sqlite3.Connection = Depends(db.get_db)):
+    """Return safe public settings needed by client map and UI, including test mode."""
+    cfg = config.get_public_config()
+    cfg["test_mode"] = (db.get_setting(conn, "test_mode") == "1")
+    cfg["allow_test_mode"] = config.ALLOW_TEST_MODE
+    return cfg
 
-    Never exposes secrets, database paths, or admin credentials.
+
+@app.get("/api/rules")
+def get_rules():
+    """Build rules and FAQ dynamically from configuration parameters.
+
+    Ensures numerical values, durations, and penalties can never go out of date
+    with config.py settings.
     """
-    return config.get_public_config()
+    hint_min = config.HINT_PENALTY_S // 60
+    skip_wait_min = config.SKIP_WAIT_S // 60
+    skip_pen_min = config.SKIP_PENALTY_S // 60
+    boost_pct = int(round(config.BOOST_PERCENT * 100))
+
+    return {
+        "rules": [
+            {
+                "title": "Quest Objective",
+                "text": f"Walk across the DAVV campus together to find and unlock {config.MIN_CHECKPOINTS} or more hidden checkpoints in sequence.",
+            },
+            {
+                "title": "Unlocking Checkpoints",
+                "text": f"Follow each clue to its physical location. Stay inside the geofence zone (25 to 100 m radius) until your device logs {config.STREAK_REQUIRED} consecutive GPS fixes.",
+            },
+            {
+                "title": "GPS & Speed Limits",
+                "text": f"Locations with GPS accuracy worse than {int(config.ACCURACY_LIMIT_M)} m are ignored to prevent drift unlocks. Moving faster than {int(config.MAX_SPEED_MPS)} m/s ({int(config.MAX_SPEED_MPS * 3.6)} km/h) resets your streak.",
+            },
+            {
+                "title": "Power-ups",
+                "text": f"Hint adds a {hint_min}-minute penalty (+{config.HINT_PENALTY_S}s) and reveals a clear clue. Radar shows live distance for {config.RADAR_DURATION_S}s. Radius Boost expands geofences by {boost_pct}% for {config.BOOST_DURATION_S}s.",
+            },
+            {
+                "title": "Skipping Checkpoints",
+                "text": f"If stuck on a checkpoint for at least {skip_wait_min} minutes ({config.SKIP_WAIT_S}s), your team can skip it for a {skip_pen_min}-minute penalty (+{config.SKIP_PENALTY_S}s).",
+            },
+        ],
+        "faq": [
+            {
+                "q": "GPS is not working",
+                "a": f"Ensure browser location permission is set to Allow. Move outdoors away from thick concrete walls or dense trees. Fixes worse than {int(config.ACCURACY_LIMIT_M)} m accuracy are held until satellite reception improves.",
+            },
+            {
+                "q": "My phone died",
+                "a": "Visit an organizer at the desk to release your team's device. Another member can then enter your team code on their phone to continue without losing progress.",
+            },
+            {
+                "q": "I am standing at the spot but it does not unlock",
+                "a": f"GPS signals drift near large campus buildings. Hold your phone still for a few seconds to let accuracy settle under {int(config.ACCURACY_LIMIT_M)} m and record {config.STREAK_REQUIRED} consecutive fixes inside the zone, or activate a Radius Boost.",
+            },
+            {
+                "q": "What does a Hint cost",
+                "a": f"Using a hint adds {hint_min} minutes (+{config.HINT_PENALTY_S}s) to your total adjusted time. Only one hint is available per checkpoint.",
+            },
+            {
+                "q": "How do I win",
+                "a": "Teams are ranked first by most checkpoints cleared, then by lowest adjusted time (elapsed time + penalties − bonuses), and lastly by earliest final unlock time.",
+            },
+        ],
+        "values": {
+            "hint_penalty_s": config.HINT_PENALTY_S,
+            "skip_wait_s": config.SKIP_WAIT_S,
+            "skip_penalty_s": config.SKIP_PENALTY_S,
+            "radar_duration_s": config.RADAR_DURATION_S,
+            "boost_duration_s": config.BOOST_DURATION_S,
+            "boost_percent": boost_pct,
+            "accuracy_limit_m": config.ACCURACY_LIMIT_M,
+            "streak_required": config.STREAK_REQUIRED,
+            "max_speed_mps": config.MAX_SPEED_MPS,
+            "min_checkpoints": config.MIN_CHECKPOINTS,
+            "min_members": config.MIN_MEMBERS,
+        },
+    }
 
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -534,13 +614,14 @@ def get_gods_game_status(
     admin_user: str = Depends(auth.require_admin),
     conn: sqlite3.Connection = Depends(db.get_db),
 ):
-    """Return administrative overview of game state, registration, and checkpoints."""
+    """Return administrative overview of game state, registration, checkpoints, and test mode."""
     game_state = db.get_setting(conn, "game_state") or "setup"
     reg_open = (db.get_setting(conn, "registration_open") == "1")
     started_at_str = db.get_setting(conn, "started_at")
     started_at = float(started_at_str) if started_at_str else None
     now = time.time()
     cp_count = db.get_checkpoint_count(conn)
+    test_mode = (db.get_setting(conn, "test_mode") == "1")
 
     return {
         "game_state": game_state,
@@ -551,7 +632,38 @@ def get_gods_game_status(
         "started_at": started_at,
         "started_at_ms": int(started_at * 1000) if started_at else None,
         "countdown_s": config.COUNTDOWN_S,
+        "test_mode": test_mode,
+        "allow_test_mode": config.ALLOW_TEST_MODE,
     }
+
+
+@app.post("/api/gods/game/test-mode")
+def set_gods_test_mode(
+    body: TestModeToggleRequest,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Enable or disable location test mode.
+
+    Can only be turned on if ALLOW_TEST_MODE is true in the environment.
+    Note: This protects only the built-in app feature; the server cannot detect
+    location spoofing performed outside the app (e.g. mock GPS apps or DevTools Sensors).
+    """
+    if not config.ALLOW_TEST_MODE:
+        raise HTTPException(
+            status_code=403,
+            detail="Test mode is disabled in this environment (ALLOW_TEST_MODE is false).",
+        )
+
+    val = "1" if body.enabled else "0"
+    db.set_setting(conn, "test_mode", val)
+    db.log_event(
+        conn,
+        None,
+        game.EVENT_TEST_MODE_TOGGLED,
+        f"enabled={body.enabled} by={admin_user}",
+    )
+    return {"status": "ok", "test_mode": body.enabled}
 
 
 # --- Admin Teams Management Endpoints ---
@@ -869,6 +981,7 @@ def get_game_state(
         "checkpoint_started_at_ms": checkpoint_started_at_ms,
         "skip_wait_s": skip_wait_s,
         "skip_penalty_s": skip_penalty_s,
+        "test_mode": (db.get_setting(conn, "test_mode") == "1"),
     }
 
 
@@ -1090,14 +1203,33 @@ def ping_location(
             "total": total,
         }
 
+    # Test mode verification:
+    # If the ping claims test: true, the server refuses it unless test mode is active in settings.
+    # Note: This protects only the built-in app feature; the server cannot detect location spoofing
+    # performed outside the app (e.g. mock GPS apps or DevTools Sensors).
+    test_mode_on = (db.get_setting(conn, "test_mode") == "1")
+    if body.test and not test_mode_on:
+        db.log_event(
+            conn,
+            team["id"],
+            game.EVENT_TEST_PING_REFUSED,
+            f"test_ping_refused lat={body.lat} lng={body.lng}",
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Test mode is not active on the server.",
+        )
+
     # Accuracy check: ignore fix if worse than configured threshold
     if not game.accuracy_ok(body.accuracy, config.ACCURACY_LIMIT_M):
         db.touch_team_last_seen(conn, team["id"], now)
         return {"status": "weak_gps"}
 
     # Speed plausibility check: reject teleporting fixes (> MAX_SPEED_MPS)
+    # Test pings bypass this check so testers can simulate fixes across campus without rejection.
     if (
-        fresh_team["last_fix_lat"] is not None
+        not body.test
+        and fresh_team["last_fix_lat"] is not None
         and fresh_team["last_fix_lng"] is not None
         and fresh_team["last_fix_ts"] is not None
     ):

@@ -26,6 +26,8 @@ EVENT_TIME_ADJUSTED = "time_adjusted"
 EVENT_TEAM_DELETED = "team_deleted"
 EVENT_CHECKPOINT_SKIPPED = "checkpoint_skipped"
 EVENT_CHECKPOINT_FORCE_CLEARED = "checkpoint_force_cleared"
+EVENT_TEST_PING_REFUSED = "test_ping_refused"
+EVENT_TEST_MODE_TOGGLED = "test_mode_toggled"
 
 EVENT_TYPES = frozenset({
     EVENT_TEAM_REGISTERED,
@@ -44,6 +46,8 @@ EVENT_TYPES = frozenset({
     EVENT_TEAM_DELETED,
     EVENT_CHECKPOINT_SKIPPED,
     EVENT_CHECKPOINT_FORCE_CLEARED,
+    EVENT_TEST_PING_REFUSED,
+    EVENT_TEST_MODE_TOGGLED,
 })
 
 

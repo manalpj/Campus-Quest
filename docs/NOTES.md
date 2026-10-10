@@ -376,6 +376,25 @@
 **Q2: Why do you show an advisory banner for in-app browsers instead of strictly blocking or enforcing browser detection?**  
 **A2:** User agent strings across mobile webviews (like Instagram, WhatsApp, or WeChat) are fragmented, frequently updated, and prone to false positives. Treating in-app detection as a hard block risks locking out legitimate players whose browsers might handle Geolocation and cookies without issue. Providing a calm advisory banner ("Open this link in Chrome or Safari for location to work properly") alerts players to common in-app location sandbox limitations without preventing teams from playing.
 
+---
+
+## Task 20: Test mode, Rules tab, and FAQ
+
+### 5-Line Interview Summary
+- Implemented `POST /api/gods/game/test-mode` allowing admins to toggle simulated test fixes only when `ALLOW_TEST_MODE` is enabled in the environment.
+- Enforced server-side validation in `/api/ping`: pings with `test: true` are refused with HTTP 403 and logged if test mode is inactive on the server.
+- Allowed map tapping during active test mode to simulate location fixes, with speed plausibility checks bypassed for test pings to permit testing across campus.
+- Displayed prominent, calm "TEST MODE ACTIVE" banners across player and organizer screens whenever test mode is turned on.
+- Built public `GET /api/rules` dynamically formatting rules and all 5 field FAQ entries directly from `config.py` variables so numbers never go out of date.
+
+### Interview Questions & Answers
+**Q1: Why does the server refuse `test: true` with a 403 and log it when test mode is disabled, and why can't the server detect spoofing done outside the app?**  
+**A1:** The `test: true` flag protects the built-in development and demo feature so players in a live event cannot tap the map to jump between checkpoints. However, the server only receives coordinates and an accuracy estimate from the HTTP body; it cannot verify whether the phone's OS produced those coordinates through satellite signals or an external mock location app (or Chrome DevTools Sensors). To mitigate external spoofing, the server enforces independent defenses: speed plausibility checks (rejecting speeds over 12 m/s), accuracy thresholds, hidden uncleared coordinates, and on-site organizers.
+
+**Q2: Why does `GET /api/rules` build its text dynamically from configuration settings instead of serving a static text or HTML document?**  
+**A2:** In game-driven applications, rules often change during tuning—such as adjusting hint penalties from 3 minutes to 5 minutes, or changing skip wait times from 10 to 15 minutes. If rules and FAQ entries were hardcoded in static HTML, code changes in `config.py` would cause the documentation to display conflicting or obsolete numbers to players. Computing the text dynamically from `config.HINT_PENALTY_S`, `config.SKIP_WAIT_S`, `config.ACCURACY_LIMIT_M`, etc., guarantees that player-facing documentation stays 100% synchronized with the server's authoritative game engine.
+
+
 
 
 

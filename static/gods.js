@@ -76,6 +76,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const gameCpCounter = document.getElementById("game-cp-counter");
   const gameCpStatusText = document.getElementById("game-cp-status-text");
   const btnSwitchToCheckpoints = document.getElementById("btn-switch-to-checkpoints");
+  const godsTestModePill = document.getElementById("gods-test-mode-pill");
+  const testModeStatusBadge = document.getElementById("test-mode-status-badge");
+  const btnToggleTestMode = document.getElementById("btn-toggle-test-mode");
+  const testModeEnvHint = document.getElementById("test-mode-env-hint");
 
   // Elements: Checkpoints Workspace
   const globalAlert = document.getElementById("gods-global-alert");
@@ -371,6 +375,34 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnGameReset) {
       btnGameReset.disabled = (status.game_state === "setup");
     }
+
+    // 5. Location Test Mode Control
+    const testModeActive = Boolean(status.test_mode);
+    const allowTestMode = Boolean(status.allow_test_mode);
+
+    if (godsTestModePill) {
+      godsTestModePill.hidden = !testModeActive;
+    }
+    if (testModeStatusBadge) {
+      testModeStatusBadge.textContent = testModeActive ? "Active" : "Inactive";
+      testModeStatusBadge.className = testModeActive ? "badge-status badge-attention" : "badge-status badge-closed";
+    }
+    if (btnToggleTestMode) {
+      if (!allowTestMode) {
+        btnToggleTestMode.disabled = true;
+        btnToggleTestMode.textContent = "Test Mode Disabled";
+        if (testModeEnvHint) {
+          testModeEnvHint.textContent = "Disabled in host environment (ALLOW_TEST_MODE=0). Set ALLOW_TEST_MODE=1 in .env to enable.";
+          testModeEnvHint.hidden = false;
+        }
+      } else {
+        btnToggleTestMode.disabled = false;
+        btnToggleTestMode.textContent = testModeActive ? "Disable Test Mode" : "Enable Test Mode";
+        if (testModeEnvHint) {
+          testModeEnvHint.hidden = true;
+        }
+      }
+    }
   }
 
   async function handleToggleRegistration() {
@@ -390,6 +422,30 @@ document.addEventListener("DOMContentLoaded", () => {
       showGameAlert(`Registration successfully ${action === "open" ? "opened" : "closed"}.`, false);
     } catch (err) {
       showGameAlert("Error toggling registration: " + err.message, true);
+    }
+  }
+
+  async function handleToggleTestMode() {
+    if (!currentGameStatus) return;
+    hideGameAlert();
+    const newTarget = !currentGameStatus.test_mode;
+    try {
+      const res = await fetch("/api/gods/game/test-mode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({ enabled: newTarget }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.detail || "Failed to toggle test mode");
+      }
+      showGameAlert(`Location test mode ${newTarget ? "enabled" : "disabled"}.`, false);
+      await loadGameStatus();
+    } catch (err) {
+      showGameAlert("Error toggling test mode: " + err.message, true);
     }
   }
 
@@ -1570,6 +1626,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (btnGameReset) {
     btnGameReset.addEventListener("click", handleResetGame);
+  }
+  if (btnToggleTestMode) {
+    btnToggleTestMode.addEventListener("click", handleToggleTestMode);
   }
 
   // Modal event listeners

@@ -42,7 +42,10 @@
     <section id="admin-shell-section" class="gods-card gods-shell-card" aria-labelledby="admin-shell-title" hidden>
       <header class="gods-shell-header">
         <div>
-          <h1 id="admin-shell-title" class="gods-card-title">Campus Quest Admin</h1>
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <h1 id="admin-shell-title" class="gods-card-title">Campus Quest Admin</h1>
+            <span id="gods-test-mode-pill" class="badge-status badge-attention" hidden>TEST MODE ACTIVE</span>
+          </div>
           <p class="gods-subtitle">
             Logged in as <strong id="current-admin-name">admin</strong>
           </p>
@@ -128,6 +131,22 @@
             <button type="button" id="btn-switch-to-checkpoints" class="gods-btn gods-btn-secondary gods-btn-sm">
               Manage Checkpoints &rarr;
             </button>
+          </div>
+
+          <!-- Location Test Mode Card -->
+          <div class="gods-card-section">
+            <h2 class="section-heading">Location Test Mode</h2>
+            <div class="state-overview-row">
+              <span class="state-label">Test mode:</span>
+              <span id="test-mode-status-badge" class="badge-status badge-closed">Inactive</span>
+            </div>
+            <p id="test-mode-desc" class="form-hint">
+              Allows simulated GPS fixes by tapping the map. Refused on server when off.
+            </p>
+            <button type="button" id="btn-toggle-test-mode" class="gods-btn gods-btn-secondary">
+              Enable Test Mode
+            </button>
+            <p id="test-mode-env-hint" class="error-hint" hidden></p>
           </div>
         </div>
       </section>

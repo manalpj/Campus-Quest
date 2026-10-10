@@ -78,6 +78,22 @@
         </div>
         <button type="button" id="btn-retry-gps" class="btn btn-secondary btn-small">Retry</button>
       </aside>
+
+      <!-- Test Mode Active Banner -->
+      <aside id="test-mode-banner" class="reliability-banner banner-attention test-mode-banner" role="status" aria-live="polite" hidden>
+        <div class="banner-content">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 2v7.31"></path>
+            <path d="M14 9.3V2"></path>
+            <path d="M8.5 2h7"></path>
+            <path d="M14 9.3a6.5 6.5 0 1 1-4 0"></path>
+          </svg>
+          <div class="banner-text">
+            <strong>TEST MODE ACTIVE</strong>
+            <span class="banner-subtext">Tap anywhere on the map to fake your location.</span>
+          </div>
+        </div>
+      </aside>
     </div>
 
     <!-- Power-up Tray (Docked above clue card) -->
@@ -146,6 +162,13 @@
           <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
         </svg>
         <span>Team</span>
+      </button>
+      <button type="button" id="tab-game-rules" class="game-nav-btn" role="tab" aria-selected="false" aria-controls="view-rules">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+        </svg>
+        <span>Rules</span>
       </button>
     </nav>
   </div>
@@ -248,7 +271,10 @@
       </div>
 
       <div class="lobby-section rules-card">
-        <h3 class="section-label">Quest rules</h3>
+        <div class="rules-card-header-row">
+          <h3 class="section-label">Quest rules</h3>
+          <button type="button" id="btn-lobby-open-rules" class="btn-text-action">Full Rules & FAQ &rarr;</button>
+        </div>
         <ul class="rules-list">
           <li><strong>Geofenced checkpoints:</strong> Walk together to the physical location to unlock clues.</li>
           <li><strong>One phone:</strong> Only this registered phone tracks your team's unlocks.</li>
@@ -319,6 +345,36 @@
       </div>
 
       <button type="button" id="btn-close-leaderboard" class="btn btn-secondary btn-block">
+        Back to Map
+      </button>
+    </div>
+  </div>
+
+  <!-- Quest Rules & FAQ View Panel -->
+  <div id="view-rules" class="overlay-modal" role="tabpanel" aria-labelledby="tab-game-rules" hidden>
+    <div class="overlay-card rules-panel-card">
+      <div class="overlay-header">
+        <h2 id="rules-title" class="overlay-title">Quest Rules & FAQ</h2>
+        <p class="overlay-subtitle">Official rules and field guidance</p>
+      </div>
+
+      <div class="rules-scroll-area">
+        <section class="rules-content-section" aria-labelledby="rules-heading">
+          <h3 id="rules-heading" class="section-label">Game Rules</h3>
+          <div id="rules-list-container" class="rules-items-list">
+            <p class="field-hint">Loading rules...</p>
+          </div>
+        </section>
+
+        <section class="rules-content-section" aria-labelledby="faq-heading">
+          <h3 id="faq-heading" class="section-label">Frequently Asked Questions</h3>
+          <div id="faq-list-container" class="faq-items-list">
+            <p class="field-hint">Loading FAQ...</p>
+          </div>
+        </section>
+      </div>
+
+      <button type="button" id="btn-close-rules" class="btn btn-secondary btn-block">
         Back to Map
       </button>
     </div>
