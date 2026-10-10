@@ -503,6 +503,18 @@ def end_game(
     return {"status": "ok", "game_state": "ended"}
 
 
+@app.post("/api/gods/game/reset")
+def reset_game(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Reset game state back to setup."""
+    db.set_setting(conn, "game_state", "setup")
+    db.set_setting(conn, "started_at", "")
+    db.log_event(conn, None, game.EVENT_GAME_RESET, None)
+    return {"status": "ok", "game_state": "setup"}
+
+
 @app.get("/api/gods/game/status")
 def get_gods_game_status(
     admin_user: str = Depends(auth.require_admin),

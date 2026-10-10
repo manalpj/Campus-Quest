@@ -58,6 +58,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const gameStateDesc = document.getElementById("game-state-desc");
   const btnGameStart = document.getElementById("btn-game-start");
   const btnGameEnd = document.getElementById("btn-game-end");
+  const btnGameReset = document.getElementById("btn-game-reset");
   const startDisabledReason = document.getElementById("start-disabled-reason");
   const regStatusBadge = document.getElementById("reg-status-badge");
   const regStatusDesc = document.getElementById("reg-status-desc");
@@ -356,6 +357,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnGameEnd) {
       btnGameEnd.disabled = (status.game_state !== "running");
     }
+
+    if (btnGameReset) {
+      btnGameReset.disabled = (status.game_state === "setup");
+    }
   }
 
   async function handleToggleRegistration() {
@@ -416,6 +421,28 @@ document.addEventListener("DOMContentLoaded", () => {
       showGameAlert("Game ended successfully.", false);
     } catch (err) {
       showGameAlert("End error: " + err.message, true);
+    }
+  }
+
+  async function handleResetGame() {
+    const confirmed = window.confirm("Reset game back to Setup? This will allow starting a new quest.");
+    if (!confirmed) return;
+
+    hideGameAlert();
+    try {
+      const res = await fetch("/api/gods/game/reset", {
+        method: "POST",
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || "Failed to reset game.");
+      }
+      await loadGameStatus();
+      await loadCheckpoints();
+      showGameAlert("Game reset to setup successfully.", false);
+    } catch (err) {
+      showGameAlert("Reset error: " + err.message, true);
     }
   }
 
@@ -1463,6 +1490,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   if (btnGameEnd) {
     btnGameEnd.addEventListener("click", handleEndGame);
+  }
+  if (btnGameReset) {
+    btnGameReset.addEventListener("click", handleResetGame);
   }
 
   // Modal event listeners

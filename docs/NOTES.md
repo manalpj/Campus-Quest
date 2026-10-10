@@ -322,5 +322,24 @@
 **Q2: How does the fix prevent this state discrepancy between the two tabs?**  
 **A2:** First, `renderCheckpoints()` now simultaneously updates both tab counter elements whenever checkpoints are loaded. Second, checkpoint mutations (add, reorder, delete) now await both `loadCheckpoints()` and `loadGameStatus()` together. Finally, `switchTab()` immediately re-fetches the active tab's endpoint and runs 5-second polling on the Game tab.
 
+---
+
+## Task: Reset Game to Setup (/gods)
+
+### 5-Line Interview Summary
+- Implemented `POST /api/gods/game/reset` protected by the `require_admin` dependency to restore the game lifecycle back to `"setup"`.
+- Cleared the `started_at` timestamp setting to empty string so new quest sessions start with a pristine countdown clock.
+- Recorded a canonical `game_reset` audit event in SQLite (`events` table) without altering registered checkpoints.
+- Added a "Reset to Setup" button (`#btn-game-reset`) to the Quest State control card in `/gods`, enabled when the game is ended or running.
+- Protected the admin reset button with a native confirmation dialog to prevent accidental resets during live gameplay.
+
+### Interview Questions & Answers
+**Q1: Why is the reset endpoint restricted to admins and audited in the events table?**  
+**A1:** Resetting the game state changes the authoritative server status for every connected player and device. If an unauthorized client could call `/api/reset`, they could disrupt an in-progress campus hunt. Guarding it with `require_admin` (via the signed `quest_admin` session cookie) ensures only authenticated organizers can trigger it, while writing an audit event to SQLite (`game_reset`) provides accountability of who reset the game and when.
+
+**Q2: What happens to the countdown timer and checkpoint locks when the game is reset back to "setup"?**  
+**A2:** In `setup` state, `started_at` is cleared to empty (`None` in API responses), which stops any active countdown banner. Crucially, returning to `setup` releases the strict live-game checkpoint locking rules, allowing organizers to once again edit checkpoint coordinates, adjust radii, add new checkpoints, or reorder the route before starting the next quest.
+
+
 
 

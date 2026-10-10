@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 import auth
 import config
 import db
+import game
 from main import app
 
 
@@ -63,6 +64,7 @@ def test_game_control_endpoints_require_admin(anon_client):
     assert anon_client.post("/api/gods/registration/close").status_code == 401
     assert anon_client.post("/api/gods/game/start").status_code == 401
     assert anon_client.post("/api/gods/game/end").status_code == 401
+    assert anon_client.post("/api/gods/game/reset").status_code == 401
     assert anon_client.get("/api/gods/game/status").status_code == 401
 
 
@@ -307,3 +309,35 @@ def test_api_state_returns_server_timestamps_and_game_state(anon_client, admin_c
     assert isinstance(data_running["server_now_ms"], int)
     assert isinstance(data_running["started_at_ms"], int)
     assert data_running["started_at_ms"] > data_running["server_now_ms"]
+
+
+def test_reset_game_flow(admin_client):
+    """Admin can reset an ended or running game back to setup, clearing started_at."""
+    seed_checkpoints(count=config.MIN_CHECKPOINTS)
+    # Start and end
+    admin_client.post("/api/gods/game/start")
+    admin_client.post("/api/gods/game/end")
+
+    # Reset
+    res = admin_client.post("/api/gods/game/reset")
+    assert res.status_code == 200
+    assert res.json()["game_state"] == "setup"
+
+    # Status reflects setup and cleared started_at
+    status = admin_client.get("/api/gods/game/status").json()
+    assert status["game_state"] == "setup"
+    assert status["started_at"] is None
+
+    # Verify event logged
+    conn = db.get_connection()
+    try:
+        events = db.get_latest_events(conn, limit=5)
+        assert any(e["type"] == game.EVENT_GAME_RESET for e in events)
+    finally:
+        conn.close()
+
+    # Can start again after reset
+    restart_res = admin_client.post("/api/gods/game/start")
+    assert restart_res.status_code == 200
+    assert restart_res.json()["game_state"] == "running"
+
