@@ -522,8 +522,9 @@ def unlock_checkpoint(
     is_last: bool,
     lat: Optional[float] = None,
     lng: Optional[float] = None,
+    awarded_powerup: Optional[str] = None,
 ) -> bool:
-    """Record an unlocked checkpoint in progress, reset streak, and update team state.
+    """Record an unlocked checkpoint in progress, reset streak, award powerup, and update team state.
 
     Runs within write_tx (BEGIN IMMEDIATE).
     Guaranteed atomic and idempotent: checks for existing progress row to prevent
@@ -546,14 +547,18 @@ def unlock_checkpoint(
             (team_id, checkpoint_id, unlocked_at, elapsed_s),
         )
 
+        radar_inc = 1 if awarded_powerup == "radar" else 0
+        boost_inc = 1 if awarded_powerup == "boost" else 0
+
         if is_last:
             conn.execute(
                 """
                 UPDATE teams
-                SET inside_streak = 0, last_seen = ?, last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?, finished_at = ?
+                SET inside_streak = 0, last_seen = ?, last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?,
+                    radar_left = radar_left + ?, boost_left = boost_left + ?, finished_at = ?
                 WHERE id = ?
                 """,
-                (unlocked_at, lat, lng, unlocked_at, unlocked_at, team_id),
+                (unlocked_at, lat, lng, unlocked_at, radar_inc, boost_inc, unlocked_at, team_id),
             )
             conn.execute(
                 """
@@ -566,10 +571,11 @@ def unlock_checkpoint(
             conn.execute(
                 """
                 UPDATE teams
-                SET inside_streak = 0, last_seen = ?, last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?
+                SET inside_streak = 0, last_seen = ?, last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?,
+                    radar_left = radar_left + ?, boost_left = boost_left + ?
                 WHERE id = ?
                 """,
-                (unlocked_at, lat, lng, unlocked_at, team_id),
+                (unlocked_at, lat, lng, unlocked_at, radar_inc, boost_inc, team_id),
             )
 
         conn.execute(
@@ -579,7 +585,157 @@ def unlock_checkpoint(
             """,
             (unlocked_at, team_id, f"Unlocked checkpoint {checkpoint_id} (elapsed {elapsed_s}s)"),
         )
+
+        if awarded_powerup:
+            conn.execute(
+                """
+                INSERT INTO events (ts, team_id, type, detail)
+                VALUES (?, ?, 'powerup_awarded', ?)
+                """,
+                (unlocked_at, team_id, f"Awarded {awarded_powerup} for clearing checkpoint {checkpoint_id}"),
+            )
+
         return True
+
+
+def use_hint(
+    conn: sqlite3.Connection,
+    team_id: int,
+    checkpoint_id: int,
+    penalty_s: int,
+    now: float,
+) -> tuple[bool, str, int]:
+    """Record hint usage for a checkpoint and apply time penalty.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    If hint was already used for this checkpoint, returns (False, hint_text, current_penalty_s)
+    without applying a second penalty.
+    If first use, records in hint_uses, increments teams.penalty_s by penalty_s,
+    logs to events, and returns (True, hint_text, new_penalty_s).
+    """
+    with write_tx(conn):
+        cp = conn.execute(
+            "SELECT hint FROM checkpoints WHERE id = ?",
+            (checkpoint_id,),
+        ).fetchone()
+        if not cp:
+            raise ValueError(f"Checkpoint {checkpoint_id} not found")
+        hint_text = cp["hint"]
+
+        existing = conn.execute(
+            "SELECT 1 FROM hint_uses WHERE team_id = ? AND checkpoint_id = ?",
+            (team_id, checkpoint_id),
+        ).fetchone()
+
+        team_row = conn.execute("SELECT penalty_s FROM teams WHERE id = ?", (team_id,)).fetchone()
+        current_penalty = team_row["penalty_s"] if team_row else 0
+
+        if existing:
+            return False, hint_text, current_penalty
+
+        conn.execute(
+            "INSERT INTO hint_uses (team_id, checkpoint_id, used_at) VALUES (?, ?, ?)",
+            (team_id, checkpoint_id, now),
+        )
+        conn.execute(
+            "UPDATE teams SET penalty_s = penalty_s + ? WHERE id = ?",
+            (penalty_s, team_id),
+        )
+        new_penalty = current_penalty + penalty_s
+
+        conn.execute(
+            "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'powerup_hint', ?)",
+            (now, team_id, f"Used hint for checkpoint {checkpoint_id} (+{penalty_s // 60}m)"),
+        )
+        return True, hint_text, new_penalty
+
+
+def use_radar(
+    conn: sqlite3.Connection,
+    team_id: int,
+    duration_s: int,
+    now: float,
+) -> tuple[bool, float, int]:
+    """Activate Radar power-up for a team.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    Checks if radar_left > 0. If 0, returns (False, current_radar_until, 0).
+    Otherwise decrements radar_left, sets radar_until = now + duration_s,
+    logs to events, and returns (True, radar_until, remaining_radar).
+    """
+    with write_tx(conn):
+        team = conn.execute(
+            "SELECT radar_left, radar_until FROM teams WHERE id = ?",
+            (team_id,),
+        ).fetchone()
+        if not team or team["radar_left"] <= 0:
+            radar_until = team["radar_until"] if team and team["radar_until"] else 0.0
+            return False, radar_until, 0
+
+        new_until = now + duration_s
+        remaining = team["radar_left"] - 1
+        conn.execute(
+            "UPDATE teams SET radar_left = ?, radar_until = ? WHERE id = ?",
+            (remaining, new_until, team_id),
+        )
+        conn.execute(
+            "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'powerup_radar', ?)",
+            (now, team_id, f"Activated radar for {duration_s}s"),
+        )
+        return True, new_until, remaining
+
+
+def use_boost(
+    conn: sqlite3.Connection,
+    team_id: int,
+    duration_s: int,
+    now: float,
+) -> tuple[bool, float, int]:
+    """Activate Radius boost power-up for a team.
+
+    Runs within write_tx (BEGIN IMMEDIATE).
+    Checks if boost_left > 0. If 0, returns (False, current_boost_until, 0).
+    Otherwise decrements boost_left, sets boost_until = now + duration_s,
+    logs to events, and returns (True, boost_until, remaining_boost).
+    """
+    with write_tx(conn):
+        team = conn.execute(
+            "SELECT boost_left, boost_until FROM teams WHERE id = ?",
+            (team_id,),
+        ).fetchone()
+        if not team or team["boost_left"] <= 0:
+            boost_until = team["boost_until"] if team and team["boost_until"] else 0.0
+            return False, boost_until, 0
+
+        new_until = now + duration_s
+        remaining = team["boost_left"] - 1
+        conn.execute(
+            "UPDATE teams SET boost_left = ?, boost_until = ? WHERE id = ?",
+            (remaining, new_until, team_id),
+        )
+        conn.execute(
+            "INSERT INTO events (ts, team_id, type, detail) VALUES (?, ?, 'powerup_boost', ?)",
+            (now, team_id, f"Activated radius boost for {duration_s}s"),
+        )
+        return True, new_until, remaining
+
+
+def get_active_hint_for_team(
+    conn: sqlite3.Connection,
+    team_id: int,
+    checkpoint_id: int,
+) -> Optional[str]:
+    """Return revealed hint string if team already used a hint for this checkpoint."""
+    row = conn.execute(
+        """
+        SELECT c.hint
+        FROM hint_uses h
+        JOIN checkpoints c ON h.checkpoint_id = c.id
+        WHERE h.team_id = ? AND h.checkpoint_id = ?
+        """,
+        (team_id, checkpoint_id),
+    ).fetchone()
+    return row["hint"] if row else None
 
 
 def get_team_cleared_checkpoints(conn: sqlite3.Connection, team_id: int) -> list[sqlite3.Row]:

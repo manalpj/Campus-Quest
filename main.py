@@ -559,13 +559,16 @@ def get_game_state(
     team: sqlite3.Row = Depends(auth.require_team_device),
     conn: sqlite3.Connection = Depends(db.get_db),
 ):
-    """Return active game state and team info for authenticated player device."""
+    """Return active game state, powerups, and team info for authenticated player device."""
     game_state = db.get_setting(conn, "game_state") or "setup"
     members = json.loads(team["members"]) if team["members"] else []
     now = time.time()
     started_at_str = db.get_setting(conn, "started_at")
     started_at = float(started_at_str) if started_at_str else None
     started_at_ms = int(started_at * 1000) if started_at else None
+
+    # Fetch latest team row to capture real-time powerup counts and timers
+    team_row = db.get_team_by_id(conn, team["id"]) or team
 
     cleared_count, total_count = db.get_team_progress_counts(conn, team["id"])
     cleared_rows = db.get_team_cleared_checkpoints(conn, team["id"])
@@ -582,25 +585,131 @@ def get_game_state(
     ]
 
     current_clue = None
-    if game_state == "running" and not team["finished_at"]:
+    active_hint = None
+    if game_state == "running" and not team_row["finished_at"]:
         next_cp = db.get_team_next_checkpoint(conn, team["id"])
         if next_cp:
             current_clue = next_cp["clue"]
+            active_hint = db.get_active_hint_for_team(conn, team["id"], next_cp["id"])
+
+    radar_active = game.is_powerup_active(team_row["radar_until"], now)
+    radar_left_s = max(0, int(team_row["radar_until"] - now)) if radar_active else 0
+    boost_active = game.is_powerup_active(team_row["boost_until"], now)
+    boost_left_s = max(0, int(team_row["boost_until"] - now)) if boost_active else 0
 
     return {
         "game_state": game_state,
         "server_now_ms": int(now * 1000),
         "started_at_ms": started_at_ms,
-        "name": team["name"],
+        "name": team_row["name"],
         "members": members,
-        "code": team["code"],
+        "code": team_row["code"],
         "device_status": "this phone is your team's device",
         "cleared": cleared_count,
         "total": total_count,
         "current_clue": current_clue,
+        "active_hint": active_hint,
+        "radar_left": team_row["radar_left"],
+        "boost_left": team_row["boost_left"],
+        "radar_active": radar_active,
+        "radar_left_s": radar_left_s,
+        "boost_active": boost_active,
+        "boost_left_s": boost_left_s,
+        "penalty_s": team_row["penalty_s"],
+        "bonus_s": team_row["bonus_s"],
         "cleared_checkpoints": cleared_checkpoints,
-        "finished": bool(team["finished_at"]),
+        "finished": bool(team_row["finished_at"]),
     }
+
+
+@app.post("/api/powerup/{powerup_type}")
+def activate_powerup(
+    powerup_type: str,
+    team: sqlite3.Row = Depends(auth.require_team_device),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Activate a player power-up (hint, radar, boost).
+
+    Requires authenticated team device. Game must be running.
+    - hint: adds HINT_PENALTY_S (+3m) penalty, reveals checkpoint hint. Max 1 per checkpoint.
+    - radar: consumes 1 radar, activates live distance tracking for RADAR_DURATION_S (60s).
+    - boost: consumes 1 boost, expands geofence radius by BOOST_EXTRA_RADIUS_M (+20m) for BOOST_DURATION_S (120s).
+    """
+    valid_types = {"hint", "radar", "boost"}
+    clean_type = powerup_type.strip().lower()
+    if clean_type not in valid_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown power-up type. Valid types: {', '.join(sorted(valid_types))}",
+        )
+
+    game_state = db.get_setting(conn, "game_state") or "setup"
+    if game_state != "running":
+        raise HTTPException(status_code=409, detail="Game is not running")
+
+    started_at_str = db.get_setting(conn, "started_at")
+    now = time.time()
+    if not started_at_str or now < float(started_at_str):
+        raise HTTPException(status_code=409, detail="Game countdown has not finished yet")
+
+    fresh_team = db.get_team_by_id(conn, team["id"]) or team
+    if fresh_team["finished_at"]:
+        raise HTTPException(status_code=409, detail="Team has already finished the quest")
+
+    next_cp = db.get_team_next_checkpoint(conn, team["id"])
+    if not next_cp:
+        raise HTTPException(status_code=409, detail="No active checkpoint remaining")
+
+    if clean_type == "hint":
+        first_time, hint_text, new_penalty = db.use_hint(
+            conn=conn,
+            team_id=team["id"],
+            checkpoint_id=next_cp["id"],
+            penalty_s=config.HINT_PENALTY_S,
+            now=now,
+        )
+        if first_time:
+            invalidate_leaderboard_cache()
+        return {
+            "powerup": "hint",
+            "hint": hint_text,
+            "penalty_added_s": config.HINT_PENALTY_S if first_time else 0,
+            "penalty_s": new_penalty,
+            "already_revealed": not first_time,
+        }
+
+    elif clean_type == "radar":
+        success, radar_until, remaining = db.use_radar(
+            conn=conn,
+            team_id=team["id"],
+            duration_s=config.RADAR_DURATION_S,
+            now=now,
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail="No Radar power-ups remaining")
+        return {
+            "powerup": "radar",
+            "radar_left": remaining,
+            "radar_until_ms": int(radar_until * 1000),
+            "duration_s": config.RADAR_DURATION_S,
+        }
+
+    elif clean_type == "boost":
+        success, boost_until, remaining = db.use_boost(
+            conn=conn,
+            team_id=team["id"],
+            duration_s=config.BOOST_DURATION_S,
+            now=now,
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail="No Radius boost power-ups remaining")
+        return {
+            "powerup": "boost",
+            "boost_left": remaining,
+            "boost_until_ms": int(boost_until * 1000),
+            "duration_s": config.BOOST_DURATION_S,
+            "extra_radius_m": config.BOOST_EXTRA_RADIUS_M,
+        }
 
 
 @app.post("/api/ping")
@@ -614,7 +723,8 @@ def ping_location(
     Validates coordinates, rejects if game is not running or countdown has not finished,
     filters weak accuracy fixes, calculates geofence distance to next checkpoint,
     manages the 2-in-a-row inside streak, and atomically unlocks checkpoints.
-    Never exposes coordinates, radius, or distance in responses.
+    Applies active Radius boost if running.
+    Exposes Radar distance only while Radar is actively running.
     """
     game_state = db.get_setting(conn, "game_state") or "setup"
     if game_state != "running":
@@ -642,8 +752,11 @@ def ping_location(
             detail="Game countdown has not finished yet",
         )
 
+    # Fetch latest team row for up-to-date power-up timers
+    fresh_team = db.get_team_by_id(conn, team["id"]) or team
+
     # If team already completed all checkpoints
-    if team["finished_at"]:
+    if fresh_team["finished_at"]:
         _, total = db.get_team_progress_counts(conn, team["id"])
         return {
             "status": "completed",
@@ -666,19 +779,40 @@ def ping_location(
             "total": total,
         }
 
-    # Haversine distance and inside test
+    # Haversine distance
     dist_m = game.haversine_m(body.lat, body.lng, next_cp["lat"], next_cp["lng"])
-    inside = game.is_inside(dist_m, next_cp["radius"])
+
+    # Boost test: check if radius boost is active
+    boost_active = game.is_powerup_active(fresh_team["boost_until"], now)
+    effective_radius = game.compute_effective_radius(
+        next_cp["radius"],
+        boost_active=boost_active,
+        boost_extra_m=config.BOOST_EXTRA_RADIUS_M,
+    )
+    inside = game.is_inside(dist_m, effective_radius)
+
+    # Radar test: check if radar is active
+    radar_active = game.is_powerup_active(fresh_team["radar_until"], now)
+    radar_info = {}
+    if radar_active:
+        radar_info = {
+            "radar_distance_m": round(dist_m),
+            "radar_label": game.format_radar_label(dist_m),
+        }
 
     # Consecutive inside streak computation
-    current_streak = team["inside_streak"]
+    current_streak = fresh_team["inside_streak"]
     new_streak = game.next_streak(current_streak, inside)
 
     # Check unlock condition
     if game.should_unlock(new_streak, config.STREAK_REQUIRED):
         elapsed_s = max(0, int(now - started_at))
         cleared_before, total = db.get_team_progress_counts(conn, team["id"])
-        is_last = (cleared_before + 1 >= total)
+        cleared_after = cleared_before + 1
+        is_last = (cleared_after >= total)
+
+        # Alternating power-up award: 1st/3rd -> Radar, 2nd/4th -> Boost
+        awarded = game.determine_awarded_powerup(cleared_after)
 
         db.unlock_checkpoint(
             conn=conn,
@@ -689,20 +823,24 @@ def ping_location(
             is_last=is_last,
             lat=body.lat,
             lng=body.lng,
+            awarded_powerup=awarded,
         )
         invalidate_leaderboard_cache()
 
         subsequent_cp = db.get_team_next_checkpoint(conn, team["id"])
-        cleared_after, _ = db.get_team_progress_counts(conn, team["id"])
 
-        return {
+        resp = {
             "status": "unlocked",
             "checkpoint_name": next_cp["name"],
             "story": next_cp["story"],
             "next_clue": subsequent_cp["clue"] if subsequent_cp else None,
             "cleared": cleared_after,
             "total": total,
+            "awarded_powerup": awarded,
         }
+        if radar_active:
+            resp.update(radar_info)
+        return resp
     else:
         db.update_team_fix_and_streak(
             conn=conn,
@@ -712,7 +850,10 @@ def ping_location(
             ts=now,
             streak=new_streak,
         )
-        return {"status": "searching"}
+        resp = {"status": "searching"}
+        if radar_active:
+            resp.update(radar_info)
+        return resp
 
 
 LEADERBOARD_CACHE_TTL_S = 1.0

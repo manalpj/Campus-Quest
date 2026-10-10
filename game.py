@@ -156,3 +156,48 @@ def rank_teams(rows: list[dict]) -> list[dict]:
     return result
 
 
+def determine_awarded_powerup(cleared_count: int) -> str | None:
+    """Determine which power-up is awarded when a checkpoint is cleared.
+
+    Rule: Teams start with none. Clearing a checkpoint awards exactly one,
+    alternating Radar on odd clears (1st, 3rd, ...) and Radius boost on
+    even clears (2nd, 4th, ...).
+    """
+    if cleared_count <= 0:
+        return None
+    return "radar" if (cleared_count % 2 == 1) else "boost"
+
+
+def compute_effective_radius(
+    base_radius_m: float,
+    boost_active: bool,
+    boost_extra_m: float = 20.0,
+) -> float:
+    """Return effective geofence radius in metres.
+
+    If Radius boost is currently active, adds boost_extra_m (default 20m)
+    to the base checkpoint radius.
+    """
+    if boost_active:
+        return base_radius_m + boost_extra_m
+    return base_radius_m
+
+
+def is_powerup_active(until_ts: float | None, now: float) -> bool:
+    """Return True if power-up duration timestamp is strictly in the future."""
+    if until_ts is None:
+        return False
+    return until_ts > now
+
+
+def format_radar_label(distance_m: float) -> str:
+    """Format distance reading for Radar HUD display.
+
+    Returns 'You're very close!' when distance is within 30 metres,
+    otherwise rounded metres string (e.g. '142 m').
+    """
+    if distance_m <= 30.0:
+        return "You're very close!"
+    return f"{int(distance_m + 0.5)} m"
+
+

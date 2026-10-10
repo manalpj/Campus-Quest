@@ -78,6 +78,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const lobbyCountdownBanner = document.getElementById('lobby-countdown-banner');
   const lobbyCountdownSec = document.getElementById('lobby-countdown-sec');
 
+  // Power-up Tray, HUD, & Hint Modal elements
+  const powerupTray = document.getElementById('powerup-tray');
+  const btnPowerupHint = document.getElementById('btn-powerup-hint');
+  const powerupHintBadge = document.getElementById('powerup-hint-badge');
+  const btnPowerupRadar = document.getElementById('btn-powerup-radar');
+  const powerupRadarBadge = document.getElementById('powerup-radar-badge');
+  const btnPowerupBoost = document.getElementById('btn-powerup-boost');
+  const powerupBoostBadge = document.getElementById('powerup-boost-badge');
+
+  const hudRadarBadge = document.getElementById('hud-radar-badge');
+  const hudRadarText = document.getElementById('hud-radar-text');
+  const hudBoostBadge = document.getElementById('hud-boost-badge');
+  const hudBoostSec = document.getElementById('hud-boost-sec');
+
+  const clueHintBox = document.getElementById('clue-hint-box');
+  const clueHintText = document.getElementById('clue-hint-text');
+
+  const hintConfirmOverlay = document.getElementById('hint-confirm-overlay');
+  const btnHintCancel = document.getElementById('btn-hint-cancel');
+  const btnHintConfirm = document.getElementById('btn-hint-confirm');
+  const powerupToast = document.getElementById('powerup-toast');
+
   // Application & Map State
   let serverOffsetMs = null;
   let countdownInterval = null;
@@ -543,6 +565,58 @@ document.addEventListener('DOMContentLoaded', () => {
     // Update Route History Drawer
     renderRouteHistory(state.cleared_checkpoints || []);
 
+    // Update Power-up tray & HUD
+    if (powerupTray) {
+      powerupTray.hidden = Boolean(state.finished);
+    }
+
+    // Hint power-up UI
+    if (btnPowerupHint && powerupHintBadge) {
+      if (state.active_hint) {
+        powerupHintBadge.textContent = 'Active';
+        powerupHintBadge.className = 'powerup-badge';
+        btnPowerupHint.classList.add('active');
+        if (clueHintBox && clueHintText) {
+          clueHintBox.hidden = false;
+          clueHintText.textContent = state.active_hint;
+        }
+      } else {
+        powerupHintBadge.textContent = '+3m';
+        powerupHintBadge.className = 'powerup-badge badge-penalty';
+        btnPowerupHint.classList.remove('active');
+        if (clueHintBox) clueHintBox.hidden = true;
+      }
+    }
+
+    // Radar power-up UI
+    if (btnPowerupRadar && powerupRadarBadge) {
+      powerupRadarBadge.textContent = `x${state.radar_left || 0}`;
+      btnPowerupRadar.disabled = (state.radar_left || 0) <= 0 && !state.radar_active;
+      if (state.radar_active) {
+        btnPowerupRadar.classList.add('active');
+        if (hudRadarBadge) hudRadarBadge.hidden = false;
+      } else {
+        btnPowerupRadar.classList.remove('active');
+        if (hudRadarBadge) hudRadarBadge.hidden = true;
+      }
+    }
+
+    // Boost power-up UI
+    if (btnPowerupBoost && powerupBoostBadge) {
+      powerupBoostBadge.textContent = `x${state.boost_left || 0}`;
+      btnPowerupBoost.disabled = (state.boost_left || 0) <= 0 && !state.boost_active;
+      if (state.boost_active) {
+        btnPowerupBoost.classList.add('active');
+        if (hudBoostBadge) {
+          hudBoostBadge.hidden = false;
+          if (hudBoostSec) hudBoostSec.textContent = state.boost_left_s || 0;
+        }
+      } else {
+        btnPowerupBoost.classList.remove('active');
+        if (hudBoostBadge) hudBoostBadge.hidden = true;
+      }
+    }
+
     // Start elapsed timer driven by server start time
     if (!state.finished) {
       startElapsedTimer(state.started_at_ms);
@@ -751,6 +825,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
           if (data.status === 'unlocked') {
             showUnlockModal(data.checkpoint_name || 'Checkpoint', data.story, data.next_clue);
+            if (data.awarded_powerup) {
+              const label = data.awarded_powerup === 'radar' ? 'Radar' : 'Radius Boost';
+              showPowerupToast(`🎉 Awarded 1 ${label}!`);
+            }
             // Refresh full state to sync cleared checkpoints & counts
             fetchState();
           } else if (data.status === 'weak_gps') {
@@ -759,11 +837,92 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchState();
             showFinishScreen();
           }
+
+          // Live Radar distance update
+          if (data.radar_distance_m !== undefined || data.radar_label) {
+            if (hudRadarBadge && hudRadarText) {
+              hudRadarBadge.hidden = false;
+              hudRadarText.textContent = data.radar_label || `${data.radar_distance_m} m`;
+            }
+          }
         })
         .catch(() => {
           showReconnecting();
         });
     }, pingIntervalMs);
+  }
+
+  // --- Power-up Actions & Handlers ---
+
+  function showPowerupToast(msg) {
+    if (!powerupToast) return;
+    powerupToast.textContent = msg;
+    powerupToast.hidden = false;
+    setTimeout(() => {
+      powerupToast.hidden = true;
+    }, 3500);
+  }
+
+  function activatePowerup(type) {
+    return fetch(`/api/powerup/${type}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then(async (res) => {
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(body.detail || `Failed to activate ${type}`);
+        }
+        return body;
+      })
+      .then((data) => {
+        if (type === 'hint') {
+          showPowerupToast('💡 Hint revealed (+3 min added)');
+        } else if (type === 'radar') {
+          showPowerupToast('📡 Radar active! Tracking live distance for 60s');
+        } else if (type === 'boost') {
+          showPowerupToast('⚡ Radius boost active! +20m radius for 120s');
+        }
+        fetchState();
+      })
+      .catch((err) => {
+        showPowerupToast(err.message || 'Power-up unavailable');
+      });
+  }
+
+  if (btnPowerupHint) {
+    btnPowerupHint.addEventListener('click', () => {
+      if (currentGameState && currentGameState.active_hint) {
+        showPowerupToast('Hint already revealed for this checkpoint');
+        return;
+      }
+      if (hintConfirmOverlay) hintConfirmOverlay.hidden = false;
+    });
+  }
+
+  if (btnHintCancel) {
+    btnHintCancel.addEventListener('click', () => {
+      if (hintConfirmOverlay) hintConfirmOverlay.hidden = true;
+    });
+  }
+
+  if (btnHintConfirm) {
+    btnHintConfirm.addEventListener('click', () => {
+      if (hintConfirmOverlay) hintConfirmOverlay.hidden = true;
+      activatePowerup('hint');
+    });
+  }
+
+  if (btnPowerupRadar) {
+    btnPowerupRadar.addEventListener('click', () => {
+      activatePowerup('radar');
+    });
+  }
+
+  if (btnPowerupBoost) {
+    btnPowerupBoost.addEventListener('click', () => {
+      activatePowerup('boost');
+    });
   }
 
   // --- Session Restoration & Background Polling ---
@@ -802,6 +961,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if (lobbyOverlay) lobbyOverlay.hidden = true;
     if (statusBar) statusBar.hidden = true;
     if (clueCard) clueCard.hidden = true;
+    if (powerupTray) powerupTray.hidden = true;
+    if (hintConfirmOverlay) hintConfirmOverlay.hidden = true;
+    if (clueHintBox) clueHintBox.hidden = true;
     if (gameTabBar) gameTabBar.hidden = true;
     if (viewTeam) viewTeam.hidden = true;
     if (viewLeaderboard) viewLeaderboard.hidden = true;

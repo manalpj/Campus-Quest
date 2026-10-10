@@ -47,13 +47,39 @@
       Reconnecting...
     </div>
 
+    <!-- Power-up Tray (Docked above clue card) -->
+    <div id="powerup-tray" class="powerup-tray" aria-label="Team power-ups" hidden>
+      <button type="button" id="btn-powerup-hint" class="powerup-btn" aria-label="Use Hint (+3 min penalty)">
+        <span class="powerup-btn-title">Hint</span>
+        <span id="powerup-hint-badge" class="powerup-badge badge-penalty">+3m</span>
+      </button>
+
+      <button type="button" id="btn-powerup-radar" class="powerup-btn" aria-label="Use Radar (60s distance meter)">
+        <span class="powerup-btn-title">Radar</span>
+        <span id="powerup-radar-badge" class="powerup-badge">x0</span>
+      </button>
+
+      <button type="button" id="btn-powerup-boost" class="powerup-btn" aria-label="Use Radius Boost (+20m radius)">
+        <span class="powerup-btn-title">Boost</span>
+        <span id="powerup-boost-badge" class="powerup-badge">x0</span>
+      </button>
+    </div>
+
     <!-- Active Clue Card (Docked above bottom navigation) -->
     <section id="game-clue-card" class="clue-card" aria-label="Current Clue">
       <div class="clue-card-header">
-        <span class="clue-tag">Route Clue</span>
+        <div class="clue-tag-group">
+          <span class="clue-tag">Route Clue</span>
+          <span id="hud-radar-badge" class="hud-badge hud-radar" hidden>📡 <span id="hud-radar-text">--</span></span>
+          <span id="hud-boost-badge" class="hud-badge hud-boost" hidden>⚡ +20m (<span id="hud-boost-sec">120</span>s)</span>
+        </div>
         <span id="clue-target-label" class="clue-target-label">Checkpoint</span>
       </div>
       <p id="clue-text" class="clue-text">Waiting for first clue...</p>
+      <div id="clue-hint-box" class="clue-hint-box" hidden>
+        <span class="hint-tag">Hint Revealed (+3m)</span>
+        <p id="clue-hint-text" class="clue-hint-text"></p>
+      </div>
     </section>
 
     <!-- Bottom Navigation Tab Bar (Map, Leaderboard, Team) -->
@@ -330,6 +356,21 @@
       </div>
     </div>
   </div>
+
+  <!-- Hint Confirmation Modal -->
+  <div id="hint-confirm-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="hint-confirm-title" hidden>
+    <div class="overlay-card hint-modal-card">
+      <h2 id="hint-confirm-title" class="overlay-title">Reveal Hint?</h2>
+      <p class="hint-modal-desc">Revealing this hint adds <strong>+3 minutes</strong> to your team's total adjusted time. You can only use one hint per checkpoint.</p>
+      <div class="modal-buttons-row">
+        <button type="button" id="btn-hint-cancel" class="btn btn-secondary">Cancel</button>
+        <button type="button" id="btn-hint-confirm" class="btn btn-primary">Reveal (+3m)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Power-up Feedback Toast -->
+  <div id="powerup-toast" class="powerup-toast" role="status" aria-live="polite" hidden></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/app.js"></script>

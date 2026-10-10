@@ -9,6 +9,10 @@ from game import (
     next_streak,
     rank_teams,
     should_unlock,
+    determine_awarded_powerup,
+    compute_effective_radius,
+    is_powerup_active,
+    format_radar_label,
 )
 
 
@@ -160,4 +164,37 @@ def test_rank_teams_zero_cleared_at_bottom():
     assert zero_names == {"Zero Hero", "Zero Two"}
     assert ranked[1]["rank"] == 2
     assert ranked[2]["rank"] == 3
+
+
+def test_determine_awarded_powerup():
+    """Alternates Radar (odd clears) and Boost (even clears)."""
+    assert determine_awarded_powerup(1) == "radar"
+    assert determine_awarded_powerup(2) == "boost"
+    assert determine_awarded_powerup(3) == "radar"
+    assert determine_awarded_powerup(4) == "boost"
+    assert determine_awarded_powerup(0) is None
+    assert determine_awarded_powerup(-1) is None
+
+
+def test_compute_effective_radius():
+    """Expands base radius only when boost is active."""
+    assert compute_effective_radius(30.0, boost_active=False) == 30.0
+    assert compute_effective_radius(30.0, boost_active=True, boost_extra_m=20.0) == 50.0
+    assert compute_effective_radius(25.0, boost_active=True, boost_extra_m=15.0) == 40.0
+
+
+def test_is_powerup_active():
+    """Powerup is active only when until_ts is greater than now."""
+    assert is_powerup_active(150.0, now=100.0) is True
+    assert is_powerup_active(100.0, now=100.0) is False
+    assert is_powerup_active(90.0, now=100.0) is False
+    assert is_powerup_active(None, now=100.0) is False
+
+
+def test_format_radar_label():
+    """Formats radar distance with special text when close."""
+    assert format_radar_label(18.5) == "You're very close!"
+    assert format_radar_label(30.0) == "You're very close!"
+    assert format_radar_label(30.5) == "31 m"
+    assert format_radar_label(142.2) == "142 m"
 

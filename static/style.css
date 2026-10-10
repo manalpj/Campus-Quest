@@ -1672,5 +1672,173 @@ body {
   line-height: 1.5;
 }
 
+/* ==========================================================================
+   Power-up Tray, Buttons, & HUD (F7 Power-ups)
+   ========================================================================== */
+
+.powerup-tray {
+  position: absolute;
+  left: var(--space-12);
+  right: var(--space-12);
+  bottom: calc(var(--tab-bar-height) + 140px);
+  z-index: 1000;
+  display: flex;
+  gap: var(--space-8);
+  pointer-events: auto;
+}
+
+.powerup-btn {
+  flex: 1;
+  min-height: 44px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-stack);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-10);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.powerup-btn:hover:not(:disabled) {
+  background-color: var(--bg);
+  border-color: var(--primary);
+}
+
+.powerup-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.powerup-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: var(--bg);
+}
+
+.powerup-btn-title {
+  font-size: 0.8125rem;
+}
+
+.powerup-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background-color: var(--bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.powerup-badge.badge-penalty {
+  background-color: var(--attention-bg);
+  color: var(--attention);
+  border-color: #fce8b2;
+}
+
+.powerup-btn.active {
+  border-color: var(--primary);
+  background-color: var(--accent-light);
+}
+
+/* Clue Card Tag Groups & HUD Badges */
+.clue-tag-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.hud-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+.hud-badge.hud-radar {
+  background-color: #e8f0fe;
+  color: var(--primary);
+  border-color: #d2e3fc;
+}
+
+.hud-badge.hud-boost {
+  background-color: #e6f4ea;
+  color: var(--success);
+  border-color: #ceead6;
+}
+
+/* Clue Hint Box */
+.clue-hint-box {
+  margin-top: var(--space-8);
+  padding: var(--space-8) var(--space-10);
+  background-color: #fef7e0;
+  border: 1px solid #fce8b2;
+  border-radius: var(--radius-sm);
+}
+
+.hint-tag {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--attention);
+  margin-bottom: var(--space-4);
+}
+
+.clue-hint-text {
+  font-size: 0.8125rem;
+  color: var(--text);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Hint Confirmation Modal */
+.hint-modal-card {
+  max-width: 340px;
+  text-align: center;
+}
+
+.hint-modal-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: var(--space-16);
+}
+
+.modal-buttons-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-8);
+}
+
+/* Powerup Feedback Toast */
+.powerup-toast {
+  position: fixed;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: var(--text);
+  color: #ffffff;
+  padding: var(--space-8) var(--space-16);
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  z-index: 3000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+}
+
 
 

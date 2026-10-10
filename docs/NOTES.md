@@ -195,3 +195,21 @@
 
 **Q2: Why is adjusted time the only currency for rankings rather than combining points and speed?**  
 **A2:** Mixed point and time formulas often produce unintuitive edge cases where a team that had a slow, messy run beats a team that solved clues quickly and cleanly just by hoarding side points. By translating all actions into time adjustments (`elapsed at last unlock + penalties − bonuses`), the best physical run wins, and trade-offs (like a +3 min hint penalty) have a concrete, unambiguous impact on the leaderboard.
+
+---
+
+## Task 13: Power-ups (Hint, Radar, Radius boost) and ranking rules
+
+### 5-Line Interview Summary
+- Built `POST /api/powerup/{hint,radar,boost}` guarded by `require_team_device` cookie authentication and running state validation under `write_tx(BEGIN IMMEDIATE)`.
+- Implemented Hint power-up with a +3 minute penalty recorded in `hint_uses` (`UNIQUE(team_id, checkpoint_id)`), ensuring hints can only be charged once per checkpoint.
+- Added inventory consumption and time windows for Radar (60s live distance feedback in `/api/ping`) and Radius Boost (+20m geofence expansion in `/api/ping`).
+- Implemented the alternating earning rule: GPS unlocks award exactly one power-up, alternating Radar on odd-numbered clears and Radius Boost on even-numbered clears.
+- Created mobile-first player UI with a docked power-up tray, confirmation modal for hint time penalties, HUD tags for active Radar/Boost timers, and real-time toast feedback.
+
+### Interview Questions & Answers
+**Q1: How do we prevent players from finding checkpoint coordinates when Radar is active?**  
+**A1:** Even with Radar active, the server never returns checkpoint coordinates or geofence radii in API responses. It calculates the Haversine distance on the server and returns only the scalar distance in metres (e.g. 142 m) or "You're very close!" when within 30 metres. Once the 60-second window expires on the server clock, `/api/ping` immediately stops including any distance metric, preserving the security rule that target coordinates are never leaked.
+
+**Q2: Why does using a hint add time to `penalty_s` rather than deducting a point score, and why is `hint_uses` protected by a unique constraint?**  
+**A2:** Campus Quest uses time as its single currency (`adjusted_time = elapsed_at_last_unlock + penalties - bonuses`), so taking a hint directly costs +3 minutes (180 s) on the team's leaderboard time. The `UNIQUE(team_id, checkpoint_id)` constraint in `hint_uses` and atomic check in `write_tx` guarantee idempotency: if a team re-requests or reloads the page, they receive the hint text without ever being charged a second penalty for the same checkpoint.
