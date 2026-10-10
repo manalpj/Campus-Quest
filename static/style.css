@@ -1226,20 +1226,108 @@ body {
   border-color: #fad2cf;
 }
 
-.reconnecting-banner {
-  position: absolute;
+/* Reliability & Operational Notices (Docked below status bar) */
+.reliability-notices-container {
+  position: fixed;
   top: calc(max(var(--space-12), env(safe-area-inset-top)) + 52px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1001;
+  z-index: 2500;
+  width: calc(100% - 24px);
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  pointer-events: none;
+}
+
+.reliability-banner {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.reliability-banner[hidden] {
+  display: none !important;
+}
+
+.banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  flex: 1;
+}
+
+.banner-icon {
+  font-size: 1rem;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.banner-text {
+  flex: 1;
+}
+
+.banner-subtext {
+  font-size: 0.75rem;
+  margin-top: 2px;
+  color: inherit;
+  opacity: 0.9;
+}
+
+.banner-attention {
+  background-color: var(--attention-bg);
+  border: 1px solid #f9e2ae;
+  color: var(--attention);
+}
+
+.banner-error {
   background-color: #fce8e6;
   border: 1px solid #fad2cf;
   color: var(--error);
-  border-radius: var(--radius);
-  padding: var(--space-4) var(--space-12);
-  font-size: 0.8125rem;
+}
+
+.banner-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: 0.7;
+  font-size: 1rem;
+  line-height: 1;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+  margin: -8px -8px -8px 0;
+  transition: opacity 0.15s ease;
+}
+
+.banner-dismiss-btn:hover {
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.banner-dismiss-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.reconnecting-banner {
+  background-color: #fce8e6;
+  border: 1px solid #fad2cf;
+  color: var(--error);
   font-weight: 600;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 /* Active Clue Card */

@@ -43,8 +43,41 @@
       </svg>
     </button>
 
-    <div id="status-reconnecting" class="reconnecting-banner" role="status" aria-live="assertive" hidden>
-      Reconnecting...
+    <!-- Reliability & Operational Notices (Docked below status bar) -->
+    <div id="reliability-notices-container" class="reliability-notices-container" aria-live="polite">
+      <div id="status-reconnecting" class="reliability-banner banner-attention reconnecting-banner" role="status" aria-live="assertive" hidden>
+        <div class="banner-content">
+          <span class="banner-icon" aria-hidden="true">📡</span>
+          <span class="banner-text">Connection lost. Reconnecting to server...</span>
+        </div>
+      </div>
+
+      <aside id="inapp-browser-banner" class="reliability-banner banner-attention" role="status" aria-live="polite" hidden>
+        <div class="banner-content">
+          <span class="banner-icon" aria-hidden="true">🌐</span>
+          <span class="banner-text">Open this link in <strong>Chrome</strong> or <strong>Safari</strong> for location to work properly.</span>
+        </div>
+        <button type="button" id="btn-dismiss-inapp" class="banner-dismiss-btn" aria-label="Dismiss in-app browser hint">✕</button>
+      </aside>
+
+      <aside id="wakelock-notice" class="reliability-banner banner-attention" role="status" aria-live="polite" hidden>
+        <div class="banner-content">
+          <span class="banner-icon" aria-hidden="true">☀️</span>
+          <span class="banner-text"><strong>Keep this screen on:</strong> Screen wake lock is inactive. Keep your phone unlocked so location updates.</span>
+        </div>
+        <button type="button" id="btn-dismiss-wakelock" class="banner-dismiss-btn" aria-label="Dismiss screen wake lock notice">✕</button>
+      </aside>
+
+      <aside id="gps-permission-guide" class="reliability-banner banner-error" role="alert" aria-live="assertive" hidden>
+        <div class="banner-content">
+          <span class="banner-icon" aria-hidden="true">📍</span>
+          <div class="banner-text">
+            <strong>Location permission denied.</strong>
+            <p class="banner-subtext">Tap the lock or settings icon in your browser address bar, set Location to <strong>Allow</strong>, and reload this page.</p>
+          </div>
+        </div>
+        <button type="button" id="btn-retry-gps" class="btn btn-secondary btn-small">Retry</button>
+      </aside>
     </div>
 
     <!-- Power-up Tray (Docked above clue card) -->

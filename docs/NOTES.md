@@ -358,6 +358,25 @@
 **Q2: Why does skipping award no power-ups and return no story, while GPS unlock awards both?**  
 **A2:** Skip is a recovery mechanism for stuck teams, not a normal accomplishment. Checkpoint stories are narrative rewards for physically reaching a campus landmark, and power-ups (alternating Radar and Radius boost) are earned milestone rewards for genuine geofenced unlocks. Withholding them maintains competitive integrity and incentivizes physical exploration, while adding the 10-minute penalty keeps the leaderboard fair.
 
+---
+
+## Task 19: Reliability (Wake Lock, error states, and session persistence)
+
+### 5-Line Interview Summary
+- Integrated the Screen Wake Lock API (`navigator.wakeLock.request('screen')`) during active gameplay, automatically re-requesting locks on `visibilitychange` when returning to the tab.
+- Provided a persistent yet dismissible "Keep this screen on" attention banner whenever Wake Lock is unsupported, rejected by battery saver mode, or released.
+- Implemented heuristic in-app browser detection alerting players with a calm advisory banner to open the hunt in Chrome or Safari for reliable Geolocation.
+- Engineered calm, actionable error guidance covering Location permission denial (with clear re-enable steps), GPS hardware unavailability, weak GPS chips, and auto-reconnecting offline alerts.
+- Preserved zero client-side game state (zero `localStorage` or `sessionStorage`), ensuring page reloads resume authoritative state strictly via HttpOnly device cookies and the server clock.
+
+### Interview Questions & Answers
+**Q1: Why does the app need the Screen Wake Lock API, and why do you re-request it on the `visibilitychange` event?**  
+**A1:** Mobile operating systems pause Geolocation watchers and throttle network timers when a phone locks or a screen turns off to save battery. If a player's phone locks while walking between checkpoints, location pings halt and geofences cannot be confirmed. The Screen Wake Lock API prevents the screen from sleeping. Browsers automatically release this lock whenever a user switches apps or minimizes the tab; listening to `visibilitychange` ensures the lock is seamlessly re-acquired as soon as the page becomes visible again.
+
+**Q2: Why do you show an advisory banner for in-app browsers instead of strictly blocking or enforcing browser detection?**  
+**A2:** User agent strings across mobile webviews (like Instagram, WhatsApp, or WeChat) are fragmented, frequently updated, and prone to false positives. Treating in-app detection as a hard block risks locking out legitimate players whose browsers might handle Geolocation and cookies without issue. Providing a calm advisory banner ("Open this link in Chrome or Safari for location to work properly") alerts players to common in-app location sandbox limitations without preventing teams from playing.
+
+
 
 
 

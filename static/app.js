@@ -10,6 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const statusGpsEl = document.getElementById('gps-status') || document.getElementById('status-gps');
   const statusReconnectingEl = document.getElementById('status-reconnecting');
 
+  // Reliability & Operational Notice elements
+  const inappBrowserBanner = document.getElementById('inapp-browser-banner');
+  const btnDismissInapp = document.getElementById('btn-dismiss-inapp');
+  const wakelockNotice = document.getElementById('wakelock-notice');
+  const btnDismissWakelock = document.getElementById('btn-dismiss-wakelock');
+  const gpsPermissionGuide = document.getElementById('gps-permission-guide');
+  const btnRetryGps = document.getElementById('btn-retry-gps');
+
   // Clue Card elements
   const clueCard = document.getElementById('game-clue-card');
   const clueTargetLabel = document.getElementById('clue-target-label');
@@ -140,13 +148,117 @@ document.addEventListener('DOMContentLoaded', () => {
     statusGpsEl.className = 'chip chip-gps ' + statusClass;
   }
 
-  function showReconnecting() {
-    if (statusReconnectingEl) statusReconnectingEl.hidden = false;
+  function showReconnecting(message) {
+    if (statusReconnectingEl) {
+      const textEl = statusReconnectingEl.querySelector('.banner-text');
+      if (textEl && message) {
+        textEl.textContent = message;
+      }
+      statusReconnectingEl.hidden = false;
+    }
   }
 
   function hideReconnecting() {
     if (statusReconnectingEl) statusReconnectingEl.hidden = true;
   }
+
+  // --- Network Online / Offline Detection ---
+  window.addEventListener('offline', () => {
+    showReconnecting('You are offline. Reconnecting automatically when signal returns...');
+  });
+
+  window.addEventListener('online', () => {
+    hideReconnecting();
+    fetchState();
+    if (viewLeaderboard && !viewLeaderboard.hidden) {
+      fetchLeaderboard();
+    }
+  });
+
+  // --- In-App Browser Detection (Advisory Hint) ---
+  function detectInAppBrowser() {
+    const ua = navigator.userAgent || '';
+    return /FBAN|FBAV|Instagram|Line\/|MicroMessenger|Snapchat|BytedanceWebview|Musical_ly|Twitter|FBIOS|GSA/i.test(ua);
+  }
+
+  if (inappBrowserBanner && detectInAppBrowser()) {
+    inappBrowserBanner.hidden = false;
+  }
+
+  if (btnDismissInapp && inappBrowserBanner) {
+    btnDismissInapp.addEventListener('click', () => {
+      inappBrowserBanner.hidden = true;
+    });
+  }
+
+  // --- Screen Wake Lock API Management ---
+  let wakeLockSentinel = null;
+  let wakeLockDismissed = false;
+
+  if (btnDismissWakelock && wakelockNotice) {
+    btnDismissWakelock.addEventListener('click', () => {
+      wakeLockDismissed = true;
+      wakelockNotice.hidden = true;
+    });
+  }
+
+  async function requestWakeLock() {
+    if (!currentGameState || currentGameState.game_state !== 'running' || currentGameState.finished) {
+      releaseWakeLock();
+      return;
+    }
+
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
+
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockSentinel = await navigator.wakeLock.request('screen');
+        if (wakelockNotice) wakelockNotice.hidden = true;
+
+        wakeLockSentinel.addEventListener('release', () => {
+          wakeLockSentinel = null;
+          // Re-show fallback notice if game is still active, page visible, and not dismissed
+          if (currentGameState && currentGameState.game_state === 'running' && !currentGameState.finished) {
+            if (document.visibilityState === 'visible' && !wakeLockDismissed && wakelockNotice) {
+              wakelockNotice.hidden = false;
+            }
+          }
+        });
+      } catch (err) {
+        // Unsupported on OS level, low battery, or permission denied
+        wakeLockSentinel = null;
+        if (!wakeLockDismissed && wakelockNotice) {
+          wakelockNotice.hidden = false;
+        }
+      }
+    } else {
+      // Wake Lock API completely unsupported in browser
+      wakeLockSentinel = null;
+      if (!wakeLockDismissed && wakelockNotice) {
+        wakelockNotice.hidden = false;
+      }
+    }
+  }
+
+  function releaseWakeLock() {
+    if (wakeLockSentinel) {
+      try {
+        wakeLockSentinel.release();
+      } catch (e) {}
+      wakeLockSentinel = null;
+    }
+    if (wakelockNotice) {
+      wakelockNotice.hidden = true;
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      requestWakeLock();
+    }
+  });
 
   function showAlert(msg, isError = true) {
     if (!authAlert) return;
@@ -486,6 +598,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const currentServerTime = Date.now() + (serverOffsetMs || 0);
 
     if (state.game_state === 'setup') {
+      releaseWakeLock();
       if (statusBar) statusBar.hidden = true;
       if (clueCard) clueCard.hidden = true;
       if (gameTabBar) gameTabBar.hidden = true;
@@ -501,6 +614,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (state.game_state === 'running') {
       if (state.started_at_ms && currentServerTime < state.started_at_ms) {
         // Countdown active
+        releaseWakeLock();
         if (statusBar) statusBar.hidden = true;
         if (clueCard) clueCard.hidden = true;
         if (gameTabBar) gameTabBar.hidden = true;
@@ -531,6 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showActiveGameScreen(state);
       }
     } else if (state.game_state === 'ended') {
+      releaseWakeLock();
       showActiveGameScreen(state);
       stopElapsedTimer();
       if (clueTargetLabel) clueTargetLabel.textContent = 'Ended';
@@ -545,6 +660,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (statusBar) statusBar.hidden = false;
     if (clueCard) clueCard.hidden = false;
     if (gameTabBar) gameTabBar.hidden = false;
+
+    // Manage screen wake lock while quest is active
+    if (state.finished) {
+      releaseWakeLock();
+    } else {
+      requestWakeLock();
+    }
 
     // Update status chips
     const cleared = state.cleared || 0;
@@ -871,7 +993,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Refresh full state to sync cleared checkpoints & counts
             fetchState();
           } else if (data.status === 'weak_gps') {
-            setGpsStatus('GPS weak, move to open area', 'chip-weak');
+            const acc = (latestFix && latestFix.accuracy) ? Math.round(latestFix.accuracy) : null;
+            const accText = acc ? ` (${acc}m)` : '';
+            setGpsStatus(`GPS weak${accText} - Move to open area`, 'chip-weak');
           } else if (data.status === 'implausible') {
             setGpsStatus('Speed too high / teleporting', 'chip-weak');
           } else if (data.status === 'completed') {
@@ -888,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', () => {
           }
         })
         .catch(() => {
-          showReconnecting();
+          showReconnecting('Server unreachable. Reconnecting automatically...');
         });
     }, pingIntervalMs);
   }
@@ -1030,11 +1154,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (state) updateGameState(state);
       })
       .catch(() => {
-        showReconnecting();
+        showReconnecting('Server unreachable. Reconnecting automatically...');
       });
   }
 
   function handleUnauthorized() {
+    releaseWakeLock();
     if (pollingTimer) {
       clearInterval(pollingTimer);
       pollingTimer = null;
@@ -1139,14 +1264,36 @@ document.addEventListener('DOMContentLoaded', () => {
       renderClearedMarkers(currentGameState.cleared_checkpoints);
     }
 
+    if (btnRetryGps) {
+      btnRetryGps.addEventListener('click', () => {
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            onLocationSuccess,
+            onLocationError,
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          );
+        }
+      });
+    }
+
     if (!('geolocation' in navigator)) {
       setGpsStatus('Geolocation not supported', 'chip-weak');
+      if (gpsPermissionGuide) {
+        const text = gpsPermissionGuide.querySelector('.banner-text');
+        if (text) {
+          text.innerHTML = '<strong>Geolocation unsupported.</strong><p class="banner-subtext">Your browser or device does not support GPS location tracking.</p>';
+        }
+        gpsPermissionGuide.hidden = false;
+      }
       return;
     }
 
     setGpsStatus('Waiting for GPS...', 'chip-waiting');
 
     function onLocationSuccess(position) {
+      if (gpsPermissionGuide) {
+        gpsPermissionGuide.hidden = true;
+      }
       const lat = position.coords.latitude;
       const lng = position.coords.longitude;
       const accuracy = position.coords.accuracy;
@@ -1191,25 +1338,36 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       // ACCURACY_LIMIT_M = 30.0m
+      const roundedAcc = Math.round(accuracy);
       if (accuracy <= 30.0) {
-        setGpsStatus('GPS good', 'chip-good');
+        setGpsStatus(`GPS good (${roundedAcc}m)`, 'chip-good');
       } else {
-        setGpsStatus('GPS weak', 'chip-weak');
+        setGpsStatus(`GPS weak (${roundedAcc}m) - Move to open area`, 'chip-weak');
       }
     }
 
     function onLocationError(error) {
       let message = 'Unable to determine position.';
-      switch (error.code) {
-        case error.PERMISSION_DENIED:
-          message = 'Location permission denied.';
-          break;
-        case error.POSITION_UNAVAILABLE:
-          message = 'GPS unavailable. Move outdoors.';
-          break;
-        case error.TIMEOUT:
-          message = 'Waiting for GPS fix (timed out)...';
-          break;
+      if (error.code === error.PERMISSION_DENIED) {
+        message = 'Location permission denied';
+        if (gpsPermissionGuide) {
+          const text = gpsPermissionGuide.querySelector('.banner-text');
+          if (text) {
+            text.innerHTML = '<strong>Location permission denied.</strong><p class="banner-subtext">Tap the lock or settings icon in your browser address bar, set Location to <strong>Allow</strong>, and reload this page.</p>';
+          }
+          gpsPermissionGuide.hidden = false;
+        }
+      } else if (error.code === error.POSITION_UNAVAILABLE) {
+        message = 'GPS unavailable - Move outdoors';
+        if (gpsPermissionGuide) {
+          const text = gpsPermissionGuide.querySelector('.banner-text');
+          if (text) {
+            text.innerHTML = '<strong>GPS signal unavailable.</strong><p class="banner-subtext">Move outdoors with an open sky view away from large concrete buildings.</p>';
+          }
+          gpsPermissionGuide.hidden = false;
+        }
+      } else if (error.code === error.TIMEOUT) {
+        message = 'Waiting for GPS fix (timed out)...';
       }
       setGpsStatus(message, 'chip-weak');
     }
