@@ -10,12 +10,12 @@
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <div id="map-container">
+  <div id="map-container" role="region" aria-label="Interactive DAVV Campus Map">
     <div id="map" role="region" aria-label="DAVV Campus Map"></div>
 
     <!-- Top Status Bar HUD -->
     <header id="game-status-bar" class="game-status-bar" role="banner">
-      <button id="btn-nav" class="status-bar-btn" aria-label="Open quest route and history">
+      <button type="button" id="btn-nav" class="status-bar-btn" aria-label="Open quest route and history">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="4" y1="6" x2="20" y2="6"></line>
           <line x1="4" y1="12" x2="20" y2="12"></line>
@@ -24,13 +24,13 @@
       </button>
 
       <div class="status-chips-group">
-        <span id="status-cleared" class="chip chip-cleared" title="Cleared checkpoints">0/0</span>
-        <span id="status-timer" class="chip chip-timer" title="Elapsed quest time">00:00</span>
+        <span id="status-cleared" class="chip chip-cleared" aria-label="Cleared checkpoints: 0 of 0" title="Cleared checkpoints">0/0</span>
+        <span id="status-timer" class="chip chip-timer" aria-label="Elapsed quest time: 00:00" title="Elapsed quest time">00:00</span>
         <span id="gps-status" class="chip chip-gps chip-waiting" role="status" aria-live="polite">Waiting for GPS...</span>
       </div>
     </header>
 
-    <button id="btn-leaderboard" class="map-btn map-btn-top-right" aria-label="Open leaderboard">
+    <button type="button" id="btn-leaderboard" class="map-btn map-btn-top-right" aria-label="Open leaderboard">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M18 20V10"></path>
         <path d="M12 20V4"></path>
@@ -38,7 +38,7 @@
       </svg>
     </button>
 
-    <button id="btn-powerup" class="map-btn map-btn-bottom-left" aria-label="Use power-up" hidden>
+    <button type="button" id="btn-powerup" class="map-btn map-btn-bottom-left" aria-label="Use power-up" hidden>
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
       </svg>
@@ -183,10 +183,10 @@
       </div>
 
       <nav class="auth-tabs" role="tablist" aria-label="Team entrance options">
-        <button id="tab-btn-register" class="tab-btn active" role="tab" aria-selected="true" aria-controls="form-register">
+        <button type="button" id="tab-btn-register" class="tab-btn active" role="tab" aria-selected="true" aria-controls="form-register">
           Register team
         </button>
-        <button id="tab-btn-join" class="tab-btn" role="tab" aria-selected="false" aria-controls="form-join">
+        <button type="button" id="tab-btn-join" class="tab-btn" role="tab" aria-selected="false" aria-controls="form-join">
           Join with code
         </button>
       </nav>
@@ -202,15 +202,15 @@
 
         <div class="form-group">
           <div class="label-row">
-            <label>Team members (at least 2)</label>
+            <label id="members-inputs-label">Team members (at least 2)</label>
             <span class="label-hint">1 to 30 chars each</span>
           </div>
-          <div id="members-inputs" class="members-inputs-list">
+          <div id="members-inputs" class="members-inputs-list" role="group" aria-labelledby="members-inputs-label">
             <div class="member-input-row">
-              <input type="text" class="member-input" required minlength="1" maxlength="30" placeholder="Member 1 (Captain)" autocomplete="off">
+              <input type="text" class="member-input" required minlength="1" maxlength="30" placeholder="Member 1 (Captain)" aria-label="Member 1 (Captain)" autocomplete="off">
             </div>
             <div class="member-input-row">
-              <input type="text" class="member-input" required minlength="1" maxlength="30" placeholder="Member 2" autocomplete="off">
+              <input type="text" class="member-input" required minlength="1" maxlength="30" placeholder="Member 2" aria-label="Member 2" autocomplete="off">
             </div>
           </div>
           <button type="button" id="btn-add-member" class="btn btn-secondary btn-small">

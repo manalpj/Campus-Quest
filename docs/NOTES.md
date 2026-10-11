@@ -502,4 +502,22 @@
 **Q2: Why does the admin "Wipe event data" action delete teams, progress, hints, and events, but leave checkpoints and settings untouched?**  
 **A2:** Checkpoints represent the carefully curated physical geofences and riddles surveyed by organizers across the campus, and settings store operational parameters. Between orientation sessions or after an event concludes, organizers need to purge all player personal data (names, timestamps, device hashes) for privacy and hygiene without having to re-enter all physical checkpoint coordinates and clues from scratch.
 
+---
+
+## Task 23: Design pass and accessibility
+
+### 5-Line Interview Summary
+- Centralized all palette colors, borders, radius, fonts, and spacing scale into `:root` CSS custom properties in `style.css`.
+- Removed all drop shadows in favor of crisp 1px borders, leaving at most one subtle shadow on modal overlays per the design brief.
+- Enforced a minimum 44px touch target on every button, link, and interactive control, including small secondary and dismiss buttons.
+- Added universal `:focus-visible` keyboard rings, explicit input `<label>` and `aria-label` attributes, and `aria-live` error announcements.
+- Upgraded text contrast above 4.5:1 across all states, applied tabular numerals to timers and ranks, and verified layout resilience at 200% text zoom.
+
+### Interview Questions & Answers
+**Q1: Why did you eliminate drop shadows and switch to 1px borders across cards, chips, and HUD controls?**  
+**A1:** Out in direct sunlight on campus pathways, subtle drop shadows wash out completely and reduce interface contrast. Following the signage-inspired design brief, crisp 1px borders (#D9D4C8) on card surfaces (#FFFFFF) against a warm off-white background (#F6F4EF) provide clear visual boundaries and high readability without relying on trendy "vibecoded" styling.
+
+**Q2: Why is the universal `:focus-visible` ring important, and why set `min-height: 44px` on all buttons?**  
+**A2:** Keyboard and screen-reader users rely on `:focus-visible` to know exactly which control is active without adding distracting outlines during mouse clicks. For mobile players running outdoors, touch targets smaller than 44px lead to frequent mis-taps. Setting `min-height: 44px` ensures compliance with WCAG 2.5.5 and guarantees that buttons are effortless to tap on phones of any size.
+
 

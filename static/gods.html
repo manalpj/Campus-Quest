@@ -18,7 +18,7 @@
       <h1 id="login-title" class="gods-card-title">Organizer Login</h1>
       <p class="gods-subtitle">Sign in to manage Campus Quest</p>
 
-      <div id="login-alert" class="gods-alert" role="alert" hidden></div>
+      <div id="login-alert" class="gods-alert" role="alert" aria-live="assertive" hidden></div>
 
       <form id="login-form" novalidate>
         <div class="form-group">
@@ -74,7 +74,7 @@
 
       <!-- Game Control Tab Panel -->
       <section id="tab-panel-game" role="tabpanel" aria-labelledby="tab-btn-game" class="gods-tab-panel">
-        <div id="gods-game-alert" class="gods-alert" role="alert" hidden></div>
+        <div id="gods-game-alert" class="gods-alert" role="alert" aria-live="polite" hidden></div>
 
         <div class="gods-game-grid">
           <!-- Game Status & Controls Card -->
@@ -178,7 +178,7 @@
           </button>
         </div>
 
-        <div id="gods-global-alert" class="gods-alert" role="alert" hidden></div>
+        <div id="gods-global-alert" class="gods-alert" role="alert" aria-live="polite" hidden></div>
 
         <div class="gods-workspace">
           <!-- Leaflet Map Container -->
@@ -244,7 +244,7 @@
                     placeholder="Optional historical fact about this spot..."></textarea>
                 </div>
 
-                <div id="cp-form-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+                <div id="cp-form-alert" class="gods-alert gods-alert-error" role="alert" aria-live="assertive" hidden></div>
 
                 <button type="submit" id="cp-form-save-btn" class="gods-btn gods-btn-primary">
                   Save Checkpoint
@@ -286,7 +286,7 @@
           </div>
         </div>
 
-        <div id="gods-teams-alert" class="gods-alert" role="alert" hidden></div>
+        <div id="gods-teams-alert" class="gods-alert" role="alert" aria-live="polite" hidden></div>
 
         <div class="gods-table-container" role="region" aria-label="Teams Management Table" tabindex="0">
           <table class="gods-table" id="teams-table">
@@ -320,7 +320,7 @@
           <button type="button" id="btn-adjust-modal-close" class="gods-btn-text" aria-label="Close dialog">Cancel</button>
         </div>
         <p id="adjust-team-name" class="modal-target-team"></p>
-        <div id="adjust-modal-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+        <div id="adjust-modal-alert" class="gods-alert gods-alert-error" role="alert" aria-live="assertive" hidden></div>
         <form id="adjust-form" novalidate>
           <input type="hidden" id="adjust-team-id" value="">
           <div class="form-group">
@@ -350,7 +350,7 @@
         <p class="form-hint" style="margin-bottom: var(--space-12);">
           Force-clears the team's current checkpoint. Records how = 'admin' with no time penalty and no power-up.
         </p>
-        <div id="clear-modal-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+        <div id="clear-modal-alert" class="gods-alert gods-alert-error" role="alert" aria-live="assertive" hidden></div>
         <form id="clear-form" novalidate>
           <input type="hidden" id="clear-team-id" value="">
           <div class="form-group">
@@ -373,7 +373,7 @@
           <button type="button" id="btn-delete-modal-close" class="gods-btn-text" aria-label="Close dialog">Cancel</button>
         </div>
         <p id="delete-modal-warning" class="delete-warning-text"></p>
-        <div id="delete-modal-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+        <div id="delete-modal-alert" class="gods-alert gods-alert-error" role="alert" aria-live="assertive" hidden></div>
         <div class="modal-buttons-row">
           <button type="button" id="btn-delete-cancel" class="gods-btn gods-btn-secondary">Cancel</button>
           <button type="button" id="btn-delete-confirm" class="gods-btn gods-btn-danger">Delete Team</button>
@@ -394,7 +394,7 @@
         <p class="form-hint" style="margin-top: var(--space-8); margin-bottom: var(--space-12);">
           To confirm, please type <strong>WIPE</strong> in all caps below:
         </p>
-        <div id="wipe-modal-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+        <div id="wipe-modal-alert" class="gods-alert gods-alert-error" role="alert" aria-live="assertive" hidden></div>
         <form id="wipe-form" novalidate>
           <div class="form-group">
             <label for="wipe-confirm-input">Type WIPE to proceed</label>

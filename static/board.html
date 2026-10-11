@@ -16,8 +16,8 @@
         <p class="board-subtitle">Live Standings &middot; DAVV Campus</p>
       </div>
       <div class="board-header-right">
-        <div id="board-status-badge" class="board-badge board-badge-waiting" aria-live="polite">Waiting</div>
-        <div id="board-last-updated" class="board-last-updated" aria-live="off">--:--:--</div>
+        <div id="board-status-badge" class="board-badge board-badge-waiting" role="status" aria-label="Game state status" aria-live="polite">Waiting</div>
+        <div id="board-last-updated" class="board-last-updated" aria-label="Last update time" aria-live="off">--:--:--</div>
       </div>
     </header>
 
@@ -149,6 +149,7 @@
             errorBanner.hidden = true;
           }
         } catch (err) {
+          console.error('Failed to fetch board data:', err);
           if (errorBanner) {
             errorBanner.hidden = false;
           }

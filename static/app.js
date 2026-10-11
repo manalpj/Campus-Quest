@@ -310,9 +310,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!membersContainer) return;
     const rows = membersContainer.querySelectorAll('.member-input-row');
     rows.forEach((row, index) => {
+      const labelText = index === 0 ? 'Member 1 (Captain)' : `Member ${index + 1}`;
       const input = row.querySelector('.member-input');
-      if (input && !input.value) {
-        input.placeholder = index === 0 ? 'Member 1 (Captain)' : `Member ${index + 1}`;
+      if (input) {
+        if (!input.value) {
+          input.placeholder = labelText;
+        }
+        input.setAttribute('aria-label', labelText);
       }
       let removeBtn = row.querySelector('.btn-remove-member');
       if (rows.length > 2) {
@@ -320,7 +324,6 @@ document.addEventListener('DOMContentLoaded', () => {
           removeBtn = document.createElement('button');
           removeBtn.type = 'button';
           removeBtn.className = 'btn-remove-member';
-          removeBtn.setAttribute('aria-label', `Remove member ${index + 1}`);
           removeBtn.innerHTML = `
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -333,6 +336,7 @@ document.addEventListener('DOMContentLoaded', () => {
           });
           row.appendChild(removeBtn);
         }
+        removeBtn.setAttribute('aria-label', `Remove member ${index + 1}`);
       } else if (removeBtn) {
         removeBtn.remove();
       }
@@ -350,7 +354,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const row = document.createElement('div');
       row.className = 'member-input-row';
       row.innerHTML = `
-        <input type="text" class="member-input" required minlength="1" maxlength="30" placeholder="Member ${newIndex}" autocomplete="off">
+        <input type="text" class="member-input" required minlength="1" maxlength="30" placeholder="Member ${newIndex}" aria-label="Member ${newIndex}" autocomplete="off">
       `;
       membersContainer.appendChild(row);
       updateMemberRows();
