@@ -93,12 +93,16 @@ def verify_admin_cookie(cookie_val: Optional[str]) -> Optional[str]:
 
 
 def set_admin_cookie(response: Response, username: str) -> None:
-    """Attach secure HttpOnly quest_admin cookie to response."""
+    """Attach secure HttpOnly session quest_admin cookie to response.
+
+    Does not set max_age so the cookie is a session cookie that expires when
+    the browser session ends, preventing devices from staying logged in permanently
+    without re-entering credentials.
+    """
     cookie_val = create_admin_cookie_value(username)
     response.set_cookie(
         key=ADMIN_COOKIE_NAME,
         value=cookie_val,
-        max_age=SESSION_DURATION_S,
         httponly=True,
         samesite="strict",
         secure=(config.ENV == "production"),

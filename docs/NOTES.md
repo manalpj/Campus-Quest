@@ -648,3 +648,21 @@
 
 
 
+
+---
+
+## Task: Admin Session Hardening and Per-Device Authentication
+
+### 5-Line Interview Summary
+- Added strict Cache-Control: no-store, no-cache, must-revalidate, private and Pragma: no-cache headers to /gods and all /api/gods/* routes in middleware.
+- Changed the quest_admin session cookie from a persistent 8-hour max-age cookie to a true browser session cookie.
+- Prevented edge proxies, CDNs, and browsers from caching authenticated admin status across different devices on the same network.
+- Ensured newly opened browsers and sessions require explicit credential verification (ADMIN_USER and ADMIN_PASS) before granting admin panel access.
+- Expanded test coverage in tests/test_auth.py verifying no-cache header delivery, unauthenticated rejection, and session cookie lifetime flags.
+
+### Interview Questions & Answers
+**Q1: Why is setting Cache-Control: no-store, private essential on authenticated endpoints when deploying behind platforms like Railway or Cloudflare?**  
+**A1:** Without explicit no-cache response headers, intermediate edge proxies, CDNs, or corporate network gateways may cache HTTP 200 responses for sensitive endpoints like /api/gods/me. If a response is cached at the edge, a subsequent request from a different device on the same network could receive the cached 200 JSON payload instead of querying the backend, erroneously exposing admin state without credentials.
+
+**Q2: What is the difference between setting max_age versus omitting it on an authentication cookie?**  
+**A2:** Setting max_age (e.g. 28800 seconds) writes a persistent cookie to the client's persistent disk storage that survives closing and reopening the browser until the timer expires. Omitting max_age creates a transient in-memory browser session cookie that the browser automatically purges when the session ends or browser is closed, ensuring that reopening the application or opening on a new device necessitates freshly entering login credentials.

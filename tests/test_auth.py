@@ -157,3 +157,46 @@ def test_all_admin_routes_require_authentication():
 
         # Assert that we actually discovered and tested the protected admin routes
         assert admin_routes_found >= 2, f"Expected at least 2 protected admin routes, found {admin_routes_found}"
+
+
+def test_admin_routes_and_page_have_no_cache_headers():
+    """Admin page (/gods) and API routes must send strict no-cache headers to prevent proxy/CDN caching."""
+    with TestClient(app) as client:
+        # 1. Unauthenticated page load
+        res_page = client.get("/gods")
+        assert res_page.status_code == 200
+        assert "no-store" in res_page.headers.get("cache-control", "")
+        assert "no-cache" in res_page.headers.get("cache-control", "")
+        assert "private" in res_page.headers.get("cache-control", "")
+        assert res_page.headers.get("pragma") == "no-cache"
+
+        # 2. Admin auth check (/api/gods/me)
+        res_me = client.get("/api/gods/me")
+        assert res_me.status_code == 401
+        assert "no-store" in res_me.headers.get("cache-control", "")
+        assert "no-cache" in res_me.headers.get("cache-control", "")
+
+        # 3. Successful login response
+        login_res = client.post(
+            "/api/gods/login",
+            json={"username": config.ADMIN_USER, "password": config.ADMIN_PASS},
+        )
+        assert login_res.status_code == 200
+        assert "no-store" in login_res.headers.get("cache-control", "")
+
+
+def test_admin_cookie_is_session_only_without_persistent_max_age():
+    """Admin cookie must be a browser session cookie (no persistent Max-Age or Expires) so new sessions require login."""
+    with TestClient(app) as client:
+        login_res = client.post(
+            "/api/gods/login",
+            json={"username": config.ADMIN_USER, "password": config.ADMIN_PASS},
+        )
+        assert login_res.status_code == 200
+        set_cookie_header = login_res.headers.get("set-cookie", "")
+        assert auth.ADMIN_COOKIE_NAME in set_cookie_header
+        assert "httponly" in set_cookie_header.lower()
+        # Ensure persistent Max-Age is not set so browser discards cookie when closed
+        assert "max-age" not in set_cookie_header.lower()
+        assert "expires" not in set_cookie_header.lower()
+

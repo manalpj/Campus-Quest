@@ -237,6 +237,12 @@ async def security_and_header_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "DENY"
     if config.ENV == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    # Admin panel and admin APIs must never be cached by browsers, proxies, or CDNs
+    if request.url.path == "/gods" or request.url.path.startswith("/api/gods"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
+        response.headers["Pragma"] = "no-cache"
+
     return response
 
 
