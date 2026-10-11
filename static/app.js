@@ -385,6 +385,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const consentCheckbox = document.getElementById('reg-consent');
+      if (consentCheckbox && !consentCheckbox.checked) {
+        showAlert('Please read and agree to the privacy notice and event rules.');
+        return;
+      }
+
       btnSubmitRegister.disabled = true;
       btnSubmitRegister.textContent = 'Registering team...';
 
@@ -1429,6 +1435,16 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cfg.ping_interval_ms) pingIntervalMs = cfg.ping_interval_ms;
       if (cfg.poll_interval_ms) pollIntervalMs = cfg.poll_interval_ms;
       if (typeof cfg.test_mode === 'boolean') setTestMode(cfg.test_mode);
+      if (cfg.organizer_name) {
+        document.querySelectorAll('.help-org-name').forEach((el) => {
+          el.textContent = cfg.organizer_name;
+        });
+      }
+      if (cfg.organizer_contact) {
+        document.querySelectorAll('.help-org-contact').forEach((el) => {
+          el.textContent = cfg.organizer_contact;
+        });
+      }
       initMap(cfg);
     })
     .catch((err) => {

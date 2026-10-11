@@ -484,3 +484,22 @@
 **Q2: Why does resetting team progress preserve `code` and `device_hash` instead of deleting the teams?**  
 **A2:** In a live campus event, having 50 teams re-type team names, member rosters, and re-bind device cookies before Game 2 would cause huge friction and delays. By clearing only dynamic run attributes (`penalty_s`, `bonus_s`, `radar_left`, `boost_left`, `radar_until`, `boost_until`, `inside_streak`, `last_fix_*`, `finished_at`) along with `progress` and `hint_uses` rows, the paired phones remain authenticated and ready to play the next quest immediately.
 
+---
+
+## Task 22: Trust and hygiene pages
+
+### 5-Line Interview Summary
+- Added plain-language `/privacy` and `/terms` pages disclosing data collection, cookie usage, OpenStreetMap tile IP visibility, and campus safety rules with organizer contacts.
+- Added a required consent checkbox to player registration linking directly to `/privacy` and `/terms`, with touch targets meeting mobile accessibility standards.
+- Built custom 404 routing serving a user-friendly HTML error page for browser navigation and structured JSON for `/api` routes.
+- Defined unique `<title>` tags across all application views and delivered a clean SVG favicon linked across all pages.
+- Implemented an authenticated admin action `POST /api/gods/wipe` requiring typing `WIPE` to delete all teams, progress, hints, and event history while preserving checkpoints and settings.
+
+### Interview Questions & Answers
+**Q1: Why is it important to disclose OpenStreetMap tiles in the privacy notice, and why must Referrer-Policy be strict-origin-when-cross-origin instead of no-referrer?**  
+**A1:** Map tiles are fetched directly by the player's browser from `tile.openstreetmap.org`, which means OpenStreetMap's servers receive the client's IP address. OpenStreetMap's Tile Usage Policy requires a valid HTTP `Referer` header identifying the application to monitor traffic and prevent abuse. Setting `Referrer-Policy: no-referrer` would strip the header and violate OSM's policy, causing map tiles to fail loading, whereas `strict-origin-when-cross-origin` safely shares the origin while protecting sub-paths.
+
+**Q2: Why does the admin "Wipe event data" action delete teams, progress, hints, and events, but leave checkpoints and settings untouched?**  
+**A2:** Checkpoints represent the carefully curated physical geofences and riddles surveyed by organizers across the campus, and settings store operational parameters. Between orientation sessions or after an event concludes, organizers need to purge all player personal data (names, timestamps, device hashes) for privacy and hygiene without having to re-enter all physical checkpoint coordinates and clues from scratch.
+
+

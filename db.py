@@ -1150,6 +1150,21 @@ def reset_team_progress(conn: sqlite3.Connection, team_id: int) -> bool:
         return True
 
 
+def wipe_event_data(conn: sqlite3.Connection) -> None:
+    """Wipe all teams, gameplay progress, hint uses, and event logs.
+
+    Preserves checkpoints and settings completely intact.
+    Logs nothing afterwards except that a wipe happened.
+    """
+    with write_tx(conn):
+        conn.execute("DELETE FROM hint_uses;")
+        conn.execute("DELETE FROM progress;")
+        conn.execute("DELETE FROM teams;")
+        conn.execute("DELETE FROM events;")
+        log_event(conn, None, game.EVENT_EVENT_WIPED, "event data wiped")
+
+
+
 
 
 

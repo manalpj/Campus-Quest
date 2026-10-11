@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Campus Quest - Privacy Notice and Data Handling">
+  <title>Privacy Notice - Campus Quest</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="doc-body">
+  <main class="doc-container">
+    <header class="doc-header">
+      <div class="doc-header-brand">
+        <a href="/" class="doc-back-link" aria-label="Back to game">&larr; Back to Campus Quest</a>
+      </div>
+      <h1 class="doc-title">Privacy Notice</h1>
+      <p class="doc-subtitle">Plain language disclosure of data collection, storage, and player rights.</p>
+    </header>
+
+    <article class="doc-card">
+      <section class="doc-section">
+        <h2>1. What We Collect</h2>
+        <p>When you register and play Campus Quest, we collect only the minimum information needed to operate the game:</p>
+        <ul class="doc-list">
+          <li><strong>Team Name &amp; Member Names:</strong> Plain names provided by your team during registration to identify your group and verify winners. We do not ask for phone numbers, email addresses, or student roll numbers.</li>
+          <li><strong>Device Location:</strong> GPS coordinates (latitude, longitude) and estimated accuracy sent by your phone while the browser tab is open and the game is running.</li>
+          <li><strong>Device Cookie:</strong> A secure, random token stored in an <code>HttpOnly</code> cookie named <code>quest_device</code>. This cookie is required to bind your registered team to your phone so only one device tracks your progress.</li>
+        </ul>
+      </section>
+
+      <section class="doc-section">
+        <h2>2. Why We Collect It</h2>
+        <ul class="doc-list">
+          <li><strong>Checkpoints:</strong> The server compares your GPS position against checkpoint zones using the Haversine formula to unlock clues when you arrive.</li>
+          <li><strong>Fair Play:</strong> We perform basic speed plausibility checks between consecutive pings to prevent location spoofing.</li>
+          <li><strong>Live Standings:</strong> Completion times and cleared checkpoints calculate the live leaderboard.</li>
+        </ul>
+      </section>
+
+      <section class="doc-section">
+        <h2>3. Where Data is Stored</h2>
+        <p>
+          All game data is stored in a private SQLite database on the event server hosted on a persistent volume.
+          <strong>We only store your latest position</strong>; previous coordinates are overwritten on each ping. We do not record or retain a historical GPS trail or map breadcrumbs of where you walked.
+        </p>
+      </section>
+
+      <section class="doc-section">
+        <h2>4. Who Can See Your Information</h2>
+        <ul class="doc-list">
+          <li><strong>Public Leaderboard:</strong> Displays only your team name, rank, cleared checkpoints count, and adjusted time. Member names and coordinates are never displayed publicly.</li>
+          <li><strong>Organizers:</strong> Event coordinators have access to the administrative panel to manage checkpoints, verify team presence, and assist stuck teams.</li>
+        </ul>
+      </section>
+
+      <section class="doc-section">
+        <h2>5. OpenStreetMap &amp; Map Tiles</h2>
+        <p>
+          Map tiles are loaded directly from <a href="https://www.openstreetmap.org" target="_blank" rel="noreferrer">OpenStreetMap</a> servers (<code>tile.openstreetmap.org</code>). Because your browser requests map images directly from OpenStreetMap, OpenStreetMap sees your phone's IP address and browser headers in accordance with their standard tile usage policy.
+        </p>
+      </section>
+
+      <section class="doc-section">
+        <h2>6. Data Deletion</h2>
+        <p>
+          All team registrations, member names, device tokens, progress logs, and event records are strictly temporary. After the orientation event concludes, organizers wipe all event and player data from the server.
+        </p>
+      </section>
+
+      <section class="doc-section doc-contact-section">
+        <h2>7. Contact &amp; Questions</h2>
+        <p>
+          If you have questions about your privacy or wish to request data removal during the event, please contact:
+        </p>
+        <div class="organizer-contact-badge">
+          <strong id="org-name-text">{{ORGANIZER_NAME}}</strong>
+          <span id="org-contact-text">{{ORGANIZER_CONTACT}}</span>
+        </div>
+      </section>
+    </article>
+
+    <footer class="doc-footer">
+      <p>Need help? Find an organizer on campus or email <span class="footer-contact">{{ORGANIZER_CONTACT}}</span>.</p>
+    </footer>
+  </main>
+
+  <script>
+    // Fetch live config if available to ensure organizer contact is current
+    fetch('/api/config')
+      .then(res => res.ok ? res.json() : null)
+      .then(cfg => {
+        if (!cfg) return;
+        if (cfg.organizer_name) {
+          const el = document.getElementById('org-name-text');
+          if (el) el.textContent = cfg.organizer_name;
+        }
+        if (cfg.organizer_contact) {
+          const el = document.getElementById('org-contact-text');
+          if (el) el.textContent = cfg.organizer_contact;
+          document.querySelectorAll('.footer-contact').forEach(fc => fc.textContent = cfg.organizer_contact);
+        }
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>

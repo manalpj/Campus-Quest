@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Campus Quest - Event Rules and Participant Guidelines">
+  <title>Event Rules &amp; Terms - Campus Quest</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="doc-body">
+  <main class="doc-container">
+    <header class="doc-header">
+      <div class="doc-header-brand">
+        <a href="/" class="doc-back-link" aria-label="Back to game">&larr; Back to Campus Quest</a>
+      </div>
+      <h1 class="doc-title">Event Rules &amp; Terms</h1>
+      <p class="doc-subtitle">Guidelines for a safe, fair, and fun campus clue hunt.</p>
+    </header>
+
+    <article class="doc-card">
+      <section class="doc-section">
+        <h2>1. Public Outdoor Areas Only</h2>
+        <p>
+          All checkpoints are located outdoors on ground level within the DAVV campus. Participants must never enter locked buildings, laboratories, faculty offices, student hostels, or restricted maintenance areas.
+        </p>
+      </section>
+
+      <section class="doc-section">
+        <h2>2. Daytime Participation &amp; Safety</h2>
+        <p>
+          The quest takes place exclusively during daylight hours. Please stay aware of your physical surroundings at all times:
+        </p>
+        <ul class="doc-list">
+          <li>Watch your step around curbs, steps, and uneven pathways.</li>
+          <li>Look out for vehicular and pedestrian traffic when crossing campus roads.</li>
+          <li>Do not run with your eyes locked to your phone screen—stop to read clues.</li>
+          <li>Stay hydrated and alert an organizer immediately if anyone in your group feels unwell.</li>
+        </ul>
+      </section>
+
+      <section class="doc-section">
+        <h2>3. Fair Play &amp; Anti-Cheat</h2>
+        <ul class="doc-list">
+          <li><strong>On Foot:</strong> Teams must travel on foot. The use of motorbikes, cars, scooters, or bicycles is strictly prohibited.</li>
+          <li><strong>No GPS Spoofing:</strong> Location mock apps, simulated GPS coordinates, or developer tools are prohibited during the live game. Speeds exceeding human walking pace are rejected.</li>
+          <li><strong>One Phone per Team:</strong> Your team's progress is tied to a single registered phone. Splitting up across multiple active devices is not permitted.</li>
+        </ul>
+      </section>
+
+      <section class="doc-section">
+        <h2>4. Organizers' Decisions are Final</h2>
+        <p>
+          Event coordinators and volunteers are present on campus to ensure fair play. Any disputes, scoring adjustments, or disqualifications are determined solely by event organizers, and their decisions are final.
+        </p>
+      </section>
+
+      <section class="doc-section doc-contact-section">
+        <h2>5. Event Coordination</h2>
+        <p>Organized for freshers by:</p>
+        <div class="organizer-contact-badge">
+          <strong id="org-name-text">{{ORGANIZER_NAME}}</strong>
+          <span id="org-contact-text">{{ORGANIZER_CONTACT}}</span>
+        </div>
+      </section>
+    </article>
+
+    <footer class="doc-footer">
+      <p>Need help? Find an organizer on campus or email <span class="footer-contact">{{ORGANIZER_CONTACT}}</span>.</p>
+    </footer>
+  </main>
+
+  <script>
+    fetch('/api/config')
+      .then(res => res.ok ? res.json() : null)
+      .then(cfg => {
+        if (!cfg) return;
+        if (cfg.organizer_name) {
+          const el = document.getElementById('org-name-text');
+          if (el) el.textContent = cfg.organizer_name;
+        }
+        if (cfg.organizer_contact) {
+          const el = document.getElementById('org-contact-text');
+          if (el) el.textContent = cfg.organizer_contact;
+          document.querySelectorAll('.footer-contact').forEach(fc => fc.textContent = cfg.organizer_contact);
+        }
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>

@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Campus Quest - Organizer Admin Panel">
   <title>Admin Panel - Campus Quest</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -150,6 +151,17 @@
               Enable Test Mode
             </button>
             <p id="test-mode-env-hint" class="error-hint" hidden></p>
+          </div>
+
+          <!-- Event Maintenance / Danger Zone -->
+          <div class="gods-card-section gods-card-danger">
+            <h2 class="section-heading">Event Maintenance</h2>
+            <p class="form-hint" style="margin-bottom: var(--space-8);">
+              Wiping event data deletes all registered teams, player progress, hints, and event history. Checkpoints and settings are preserved.
+            </p>
+            <button type="button" id="btn-wipe-event-data" class="gods-btn gods-btn-danger">
+              Wipe Event Data...
+            </button>
           </div>
         </div>
       </section>
@@ -366,6 +378,33 @@
           <button type="button" id="btn-delete-cancel" class="gods-btn gods-btn-secondary">Cancel</button>
           <button type="button" id="btn-delete-confirm" class="gods-btn gods-btn-danger">Delete Team</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Wipe Event Data Modal Dialog -->
+    <div id="wipe-modal" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="wipe-modal-title" hidden>
+      <div class="overlay-card gods-form-card">
+        <div class="gods-form-header">
+          <h2 id="wipe-modal-title" class="gods-form-title">Wipe Event Data</h2>
+          <button type="button" id="btn-wipe-modal-close" class="gods-btn-text" aria-label="Close dialog">Cancel</button>
+        </div>
+        <p class="delete-warning-text">
+          <strong>DANGER:</strong> This action permanently deletes all registered teams, member names, checkpoint clearances, power-up usages, and audit events. Checkpoints and settings will NOT be deleted.
+        </p>
+        <p class="form-hint" style="margin-top: var(--space-8); margin-bottom: var(--space-12);">
+          To confirm, please type <strong>WIPE</strong> in all caps below:
+        </p>
+        <div id="wipe-modal-alert" class="gods-alert gods-alert-error" role="alert" hidden></div>
+        <form id="wipe-form" novalidate>
+          <div class="form-group">
+            <label for="wipe-confirm-input">Type WIPE to proceed</label>
+            <input type="text" id="wipe-confirm-input" autocomplete="off" placeholder="WIPE" required>
+          </div>
+          <div class="modal-buttons-row">
+            <button type="button" id="btn-wipe-cancel" class="gods-btn gods-btn-secondary">Cancel</button>
+            <button type="submit" id="btn-wipe-submit" class="gods-btn gods-btn-danger" disabled>Confirm Wipe</button>
+          </div>
+        </form>
       </div>
     </div>
   </main>

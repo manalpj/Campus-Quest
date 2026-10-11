@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="Campus Quest - DAVV geofenced clue hunt">
-  <title>Campus Quest</title>
+  <title>Campus Quest - DAVV Clue Hunt</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="/style.css">
 </head>
@@ -221,9 +222,18 @@
           </button>
         </div>
 
+        <div class="form-group consent-group">
+          <label class="checkbox-label" for="reg-consent">
+            <input type="checkbox" id="reg-consent" name="consent" required>
+            <span>I have read the <a href="/privacy" target="_blank" rel="noopener">privacy notice</a> and <a href="/terms" target="_blank" rel="noopener">event rules</a></span>
+          </label>
+        </div>
+
         <button type="submit" id="btn-submit-register" class="btn btn-primary btn-block">
           Register team
         </button>
+
+        <p class="support-help-line">Need help? Find an organizer: <strong class="help-org-name">GDGoC DAVV</strong> (<span class="help-org-contact">gdgoc@davv.ac.in</span>)</p>
       </form>
 
       <!-- Join Panel -->
@@ -284,6 +294,7 @@
 
       <div class="lobby-footer">
         <p class="lobby-note">Stay in IET campus bounds. The game begins when the organizer triggers the start signal.</p>
+        <p class="support-help-line">Need help? Find an organizer: <strong class="help-org-name">GDGoC DAVV</strong> (<span class="help-org-contact">gdgoc@davv.ac.in</span>)</p>
       </div>
     </div>
   </div>
@@ -312,6 +323,7 @@
         <ul id="team-info-members" class="members-chips-list"></ul>
       </div>
 
+      <p class="support-help-line">Need help? Find an organizer: <strong class="help-org-name">GDGoC DAVV</strong> (<span class="help-org-contact">gdgoc@davv.ac.in</span>)</p>
       <button type="button" id="btn-close-team" class="btn btn-secondary btn-block">
         Back to Map
       </button>
@@ -374,6 +386,7 @@
         </section>
       </div>
 
+      <p class="support-help-line">Need help? Find an organizer: <strong class="help-org-name">GDGoC DAVV</strong> (<span class="help-org-contact">gdgoc@davv.ac.in</span>)</p>
       <button type="button" id="btn-close-rules" class="btn btn-secondary btn-block">
         Back to Map
       </button>

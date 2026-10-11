@@ -60,7 +60,7 @@ def test_static_index_page_is_served(client):
     """GET / serves the static index.html page with Leaflet map elements."""
     response = client.get("/")
     assert response.status_code == 200
-    assert "<title>Campus Quest</title>" in response.text
+    assert "<title>Campus Quest - DAVV Clue Hunt</title>" in response.text
     assert 'id="map"' in response.text
     assert 'id="gps-status"' in response.text
 

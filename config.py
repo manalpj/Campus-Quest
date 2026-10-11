@@ -178,4 +178,6 @@ def get_public_config() -> Dict[str, Any]:
         "min_checkpoints": MIN_CHECKPOINTS,
         "skip_wait_s": SKIP_WAIT_S,
         "skip_penalty_s": SKIP_PENALTY_S,
+        "organizer_name": ORGANIZER_NAME,
+        "organizer_contact": ORGANIZER_CONTACT,
     }

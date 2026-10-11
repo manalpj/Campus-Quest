@@ -1738,11 +1738,103 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // --- Wipe Event Data Modal & Action ---
+  const btnWipeEventData = document.getElementById("btn-wipe-event-data");
+  const wipeModal = document.getElementById("wipe-modal");
+  const wipeModalAlert = document.getElementById("wipe-modal-alert");
+  const wipeForm = document.getElementById("wipe-form");
+  const wipeConfirmInput = document.getElementById("wipe-confirm-input");
+  const btnWipeSubmit = document.getElementById("btn-wipe-submit");
+  const btnWipeCancel = document.getElementById("btn-wipe-cancel");
+  const btnWipeModalClose = document.getElementById("btn-wipe-modal-close");
+
+  function openWipeModal() {
+    if (!wipeModal) return;
+    if (wipeModalAlert) wipeModalAlert.hidden = true;
+    if (wipeConfirmInput) {
+      wipeConfirmInput.value = "";
+      setTimeout(() => wipeConfirmInput.focus(), 50);
+    }
+    if (btnWipeSubmit) btnWipeSubmit.disabled = true;
+    wipeModal.hidden = false;
+  }
+
+  function closeWipeModal() {
+    if (!wipeModal) return;
+    wipeModal.hidden = true;
+    if (wipeConfirmInput) wipeConfirmInput.value = "";
+    if (wipeModalAlert) wipeModalAlert.hidden = true;
+  }
+
+  if (wipeConfirmInput && btnWipeSubmit) {
+    wipeConfirmInput.addEventListener("input", () => {
+      btnWipeSubmit.disabled = wipeConfirmInput.value.trim() !== "WIPE";
+    });
+  }
+
+  if (btnWipeEventData) {
+    btnWipeEventData.addEventListener("click", openWipeModal);
+  }
+  if (btnWipeCancel) {
+    btnWipeCancel.addEventListener("click", closeWipeModal);
+  }
+  if (btnWipeModalClose) {
+    btnWipeModalClose.addEventListener("click", closeWipeModal);
+  }
+  if (wipeModal) {
+    wipeModal.addEventListener("click", (e) => {
+      if (e.target === wipeModal) closeWipeModal();
+    });
+  }
+
+  if (wipeForm) {
+    wipeForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!wipeConfirmInput || wipeConfirmInput.value.trim() !== "WIPE") {
+        if (wipeModalAlert) {
+          wipeModalAlert.textContent = "Please type WIPE to confirm.";
+          wipeModalAlert.hidden = false;
+        }
+        return;
+      }
+
+      btnWipeSubmit.disabled = true;
+      btnWipeSubmit.textContent = "Wiping Data...";
+
+      try {
+        const res = await fetch("/api/gods/wipe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirm: "WIPE" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(data.detail || "Failed to wipe event data");
+        }
+        closeWipeModal();
+        showGlobalAlert("All event data successfully wiped. Checkpoints and settings retained.", "success");
+        fetchTeams();
+        fetchGameState();
+      } catch (err) {
+        if (wipeModalAlert) {
+          wipeModalAlert.textContent = err.message;
+          wipeModalAlert.hidden = false;
+        }
+      } finally {
+        if (btnWipeSubmit) {
+          btnWipeSubmit.textContent = "Confirm Wipe";
+          btnWipeSubmit.disabled = wipeConfirmInput ? wipeConfirmInput.value.trim() !== "WIPE" : false;
+        }
+      }
+    });
+  }
+
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
       if (adjustModal && !adjustModal.hidden) closeAdjustModal();
       if (deleteModal && !deleteModal.hidden) closeDeleteModal();
       if (clearModal && !clearModal.hidden) closeClearModal();
+      if (wipeModal && !wipeModal.hidden) closeWipeModal();
     }
   });
 

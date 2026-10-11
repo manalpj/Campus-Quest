@@ -12,9 +12,10 @@ from pathlib import Path
 import sqlite3
 import time
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 import auth
 import config
@@ -43,6 +44,19 @@ class AdminLoginRequest(BaseModel):
 
     username: str = Field(..., min_length=1, max_length=64, description="Administrator username")
     password: str = Field(..., min_length=1, max_length=256, description="Administrator passphrase")
+
+
+class AdminWipeRequest(BaseModel):
+    """Validated input model for administrator event data wipe."""
+
+    confirm: str = Field(..., description="Confirmation word, must be exactly WIPE")
+
+    @field_validator("confirm")
+    @classmethod
+    def validate_confirm(cls, v: str) -> str:
+        if v.strip() != "WIPE":
+            raise ValueError("Confirmation must be exactly 'WIPE'")
+        return v.strip()
 
 
 class TeamRegisterRequest(BaseModel):
@@ -211,10 +225,28 @@ async def security_and_header_middleware(request: Request, call_next):
     return response
 
 
+@app.exception_handler(StarletteHTTPException)
+def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Handle HTTP exceptions, rendering HTML 404 for browser pages and JSON for API."""
+    if exc.status_code == 404 and not request.url.path.startswith("/api/"):
+        file_404 = STATIC_DIR / "404.html"
+        if file_404.is_file():
+            return FileResponse(file_404, status_code=404)
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=exc.headers,
+    )
+
+
 @app.exception_handler(Exception)
 def generic_exception_handler(request: Request, exc: Exception):
     """Prevent internal server details, SQL, or stack traces from leaking."""
-    if isinstance(exc, HTTPException):
+    if isinstance(exc, StarletteHTTPException):
+        if exc.status_code == 404 and not request.url.path.startswith("/api/"):
+            file_404 = STATIC_DIR / "404.html"
+            if file_404.is_file():
+                return FileResponse(file_404, status_code=404)
         return JSONResponse(
             status_code=exc.status_code,
             content={"detail": exc.detail},
@@ -334,6 +366,40 @@ def board_page():
     if not board_file.is_file():
         raise HTTPException(status_code=404, detail="Board page not found")
     return FileResponse(board_file)
+
+
+@app.get("/privacy")
+def privacy_page():
+    """Serve the plain language privacy notice HTML with organizer contact."""
+    privacy_file = STATIC_DIR / "privacy.html"
+    if not privacy_file.is_file():
+        raise HTTPException(status_code=404, detail="Privacy page not found")
+    content = privacy_file.read_text(encoding="utf-8")
+    content = content.replace("{{ORGANIZER_NAME}}", config.ORGANIZER_NAME)
+    content = content.replace("{{ORGANIZER_CONTACT}}", config.ORGANIZER_CONTACT)
+    return HTMLResponse(content)
+
+
+@app.get("/terms")
+def terms_page():
+    """Serve the short event rules and terms HTML with organizer contact."""
+    terms_file = STATIC_DIR / "terms.html"
+    if not terms_file.is_file():
+        raise HTTPException(status_code=404, detail="Terms page not found")
+    content = terms_file.read_text(encoding="utf-8")
+    content = content.replace("{{ORGANIZER_NAME}}", config.ORGANIZER_NAME)
+    content = content.replace("{{ORGANIZER_CONTACT}}", config.ORGANIZER_CONTACT)
+    return HTMLResponse(content)
+
+
+@app.get("/favicon.ico")
+def favicon():
+    """Serve the SVG favicon for browser icon requests."""
+    fav_file = STATIC_DIR / "favicon.svg"
+    if not fav_file.is_file():
+        raise HTTPException(status_code=404, detail="Favicon not found")
+    return FileResponse(fav_file, media_type="image/svg+xml")
+
 
 
 # --- Administrative API Endpoints ---
@@ -852,6 +918,23 @@ def reset_single_team_endpoint(
         raise HTTPException(status_code=404, detail="Team not found")
     invalidate_leaderboard_cache()
     return {"status": "ok", "team_id": team_id}
+
+
+@app.post("/api/gods/wipe")
+def wipe_event_data_endpoint(
+    body: AdminWipeRequest,
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Wipe all teams, player progress, hints, and event history.
+
+    Requires require_admin and typing the word WIPE.
+    Preserves checkpoints and settings.
+    Logs nothing afterwards except that a wipe happened.
+    """
+    db.wipe_event_data(conn)
+    invalidate_leaderboard_cache()
+    return {"status": "ok", "detail": "Event data wiped successfully"}
 
 
 # --- Player Team & Device Endpoints ---
@@ -1479,6 +1562,12 @@ def get_board(
         "status_label": state_label,
         "teams": teams,
     }
+
+
+@app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"])
+def api_not_found(path: str):
+    """Catch-all for unmatched API endpoints to ensure JSON 404 is returned."""
+    return JSONResponse(status_code=404, content={"detail": "Not found"})
 
 
 # Mount static files (must come after specific API and /gods routes)
