@@ -538,4 +538,23 @@
 **Q2: How does the application ensure that concurrent requests cannot double-unlock a checkpoint or double-apply a power-up penalty?**  
 **A2:** SQLite is run in WAL mode with autocommit disabled (`isolation_level=None`), and state-mutating transactions use `BEGIN IMMEDIATE` via `db.write_tx`. This acquires SQLite's write lock immediately at transaction start, preventing interleaved check-then-insert operations. Furthermore, the database schema enforces composite primary keys (`PRIMARY KEY (team_id, checkpoint_id)`) on `progress` and `hint_uses`, guaranteeing at the database level that duplicate unlocks or hints cannot be recorded even under simultaneous requests.
 
+---
+
+## Task 25: README and interview preparation
+
+### 5-Line Interview Summary
+- Overhauled `README.md` for project reviewers, including a text-only walkthrough, live and video link placeholders, and complete setup instructions.
+- Documented the ping-to-unlock flow in exactly six clear lines alongside an end-to-end Mermaid architecture diagram.
+- Summarized core architectural decisions with one-sentence rationale, followed by a complete categorized API endpoint index.
+- Plainly documented the six honest operational limitations (background tracking, GPS noise, token-based device identity, outdoor-only, GPS spoofing, fixed route order).
+- Created `docs/INTERVIEW_PREP.md` consolidating the entire project's rationale into conversational questions, short answers, and exact source code locations.
+
+### Interview Questions & Answers
+**Q1: Why is it important to state the project's limitations (such as GPS spoofing and background tracking) honestly in the README?**  
+**A1:** In real-world engineering and technical evaluations, demonstrating a clear understanding of system constraints and hardware boundaries is far more impressive than making false claims. Stating clearly that web browsers cannot track in the background or verify GPS authenticity proves we understand browser security sandboxes, explain how we mitigated those risks (Wake Lock, speed plausibility, accuracy gating), and know the proper production fixes (physical QR codes).
+
+**Q2: Why did you compile `docs/INTERVIEW_PREP.md` with explicit file and function references?**  
+**A2:** During a technical interview, an applicant needs to connect conceptual explanations directly to concrete code implementations. Having the exact file and function names (such as `game.py:haversine_m`, `main.py:ping_location`, `db.py:write_tx`) readily memorized allows me to answer with precision, walk an interviewer through the exact lines of code, and demonstrate complete ownership of the entire codebase.
+
+
 
