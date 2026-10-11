@@ -628,4 +628,23 @@
 **Q2: How does the server determine when search began for the 1st checkpoint versus subsequent checkpoints?**  
 **A2:** For the very first checkpoint, the clue becomes active when the global start countdown finishes, so the search interval is `now - started_at`. For all subsequent checkpoints, search time starts the exact second the previous checkpoint was cleared or skipped, queried via `SELECT MAX(unlocked_at) FROM progress WHERE team_id = ?`.
 
+---
+
+## Task: Hint Penalty Tuning (+5m) and Live HUD Timer Synchronization
+
+### 5-Line Interview Summary
+- Updated the default hint penalty from 3 minutes (+180s) to 5 minutes (+300s) across server configuration and environment templates.
+- Fixed the player HUD timer to display authoritative adjusted time (`elapsed + penalty - bonus`) instead of raw elapsed time.
+- Ensured hint activations immediately advance the displayed HUD clock without waiting for the next polling cycle.
+- Synchronized all player UI badges, clue cards, confirmation modals, and toast alerts to consistently state the 5-minute penalty.
+- Updated automated test suites verifying 300-second penalty application, idempotency, and leaderboard adjusted time accuracy.
+
+### Interview Questions & Answers
+**Q1: Why did the player HUD timer previously show the wrong time after taking a hint, even though the database recorded it correctly?**  
+**A1:** The server recorded the penalty in `teams.penalty_s` and computed adjusted time for the leaderboard, but the client JavaScript timer only calculated raw elapsed seconds (`now - started_at`). By updating the timer tick calculation to incorporate `penalty_s` and `bonus_s`, the HUD display now reflects the team's true adjusted time during active gameplay.
+
+**Q2: Why is the hint penalty configured centrally in `config.py` rather than hardcoding 300 seconds across routes and frontend scripts?**  
+**A2:** Event rules often undergo tuning during playtesting. Storing `HINT_PENALTY_S` in `config.py` allows organizers to change penalties via environment variables without touching database schemas or route handlers, while dynamic endpoints like `/api/rules` automatically format and broadcast the synchronized values to players.
+
+
 

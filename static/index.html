@@ -104,9 +104,9 @@
     <div id="game-bottom-hud" class="game-bottom-hud">
       <!-- Power-up Tray (Docked on bottom-left above clue card) -->
       <div id="powerup-tray" class="powerup-tray" aria-label="Team power-ups" hidden>
-        <button type="button" id="btn-powerup-hint" class="powerup-btn" aria-label="Use Hint (+3 min penalty)">
+        <button type="button" id="btn-powerup-hint" class="powerup-btn" aria-label="Use Hint (+5 min penalty)">
           <span class="powerup-btn-title">Hint</span>
-          <span id="powerup-hint-badge" class="powerup-badge badge-penalty">+3m</span>
+          <span id="powerup-hint-badge" class="powerup-badge badge-penalty">+5m</span>
         </button>
 
         <button type="button" id="btn-powerup-radar" class="powerup-btn" aria-label="Use Radar (60s distance meter)">
@@ -132,7 +132,7 @@
         </div>
         <p id="clue-text" class="clue-text">Waiting for first clue...</p>
         <div id="clue-hint-box" class="clue-hint-box" hidden>
-          <span class="hint-tag">Hint Revealed (+3m)</span>
+          <span class="hint-tag">Hint Revealed (+5m)</span>
           <p id="clue-hint-text" class="clue-hint-text"></p>
         </div>
         <div class="clue-card-actions">
@@ -524,10 +524,10 @@
   <div id="hint-confirm-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="hint-confirm-title" hidden>
     <div class="overlay-card hint-modal-card">
       <h2 id="hint-confirm-title" class="overlay-title">Reveal Hint?</h2>
-      <p class="hint-modal-desc">Revealing this hint adds <strong>+3 minutes</strong> to your team's total adjusted time. You can only use one hint per checkpoint.</p>
+      <p class="hint-modal-desc">Revealing this hint adds <strong>+5 minutes</strong> to your team's total adjusted time. You can only use one hint per checkpoint.</p>
       <div class="modal-buttons-row">
         <button type="button" id="btn-hint-cancel" class="btn btn-secondary">Cancel</button>
-        <button type="button" id="btn-hint-confirm" class="btn btn-primary">Reveal (+3m)</button>
+        <button type="button" id="btn-hint-confirm" class="btn btn-primary">Reveal (+5m)</button>
       </div>
     </div>
   </div>

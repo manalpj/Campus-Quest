@@ -103,7 +103,7 @@ STREAK_REQUIRED: int = _get_int("STREAK_REQUIRED", 2)
 MAX_SPEED_MPS: float = _get_float("MAX_SPEED_MPS", 12.0)
 
 # 7. Power-up & Recovery Durations & Penalties (Seconds)
-HINT_PENALTY_S: int = _get_int("HINT_PENALTY_S", 180)
+HINT_PENALTY_S: int = _get_int("HINT_PENALTY_S", 300)
 RADAR_DURATION_S: int = _get_int("RADAR_DURATION_S", 60)
 BOOST_DURATION_S: int = _get_int("BOOST_DURATION_S", 120)
 BOOST_PERCENT: float = _get_float("BOOST_PERCENT", 0.30)

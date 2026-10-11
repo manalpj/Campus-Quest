@@ -957,7 +957,7 @@ document.addEventListener('DOMContentLoaded', () => {
           clueHintText.textContent = state.active_hint;
         }
       } else {
-        powerupHintBadge.textContent = '+3m';
+        powerupHintBadge.textContent = '+5m';
         powerupHintBadge.className = 'powerup-badge badge-penalty';
         btnPowerupHint.classList.remove('active');
         if (clueHintBox) clueHintBox.hidden = true;
@@ -1003,6 +1003,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Start elapsed timer driven by server start time
     if (!state.finished) {
       startElapsedTimer(state.started_at_ms);
+      renderTimerTick();
       // Start background location pinging
       startPinging();
     } else {
@@ -1139,15 +1140,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // --- Elapsed Game Time Tick ---
 
+  function renderTimerTick() {
+    if (!currentGameState || !currentGameState.started_at_ms) return;
+    const nowServer = Date.now() + (serverOffsetMs || 0);
+    const elapsedS = Math.max(0, Math.floor((nowServer - currentGameState.started_at_ms) / 1000));
+    const penaltyS = (typeof currentGameState.penalty_s === 'number') ? currentGameState.penalty_s : 0;
+    const bonusS = (typeof currentGameState.bonus_s === 'number') ? currentGameState.bonus_s : 0;
+    const adjustedS = Math.max(0, elapsedS + penaltyS - bonusS);
+    const mins = String(Math.floor(adjustedS / 60)).padStart(2, '0');
+    const secs = String(adjustedS % 60).padStart(2, '0');
+    if (statusTimerEl) statusTimerEl.textContent = `${mins}:${secs}`;
+  }
+
   function startElapsedTimer(startedAtMs) {
-    if (!startedAtMs || elapsedTimer) return;
+    if (!startedAtMs) return;
+
+    renderTimerTick();
+    if (elapsedTimer) return;
 
     const tick = () => {
-      const nowServer = Date.now() + (serverOffsetMs || 0);
-      const elapsedS = Math.max(0, Math.floor((nowServer - startedAtMs) / 1000));
-      const mins = String(Math.floor(elapsedS / 60)).padStart(2, '0');
-      const secs = String(elapsedS % 60).padStart(2, '0');
-      if (statusTimerEl) statusTimerEl.textContent = `${mins}:${secs}`;
+      renderTimerTick();
 
       // Decrement active power-up timers live every second
       if (currentGameState) {
@@ -1291,7 +1303,11 @@ document.addEventListener('DOMContentLoaded', () => {
       })
       .then((data) => {
         if (type === 'hint') {
-          showPowerupToast('💡 Hint revealed (+3 min added)');
+          showPowerupToast('💡 Hint revealed (+5 min added)');
+          if (currentGameState && typeof data.penalty_s === 'number') {
+            currentGameState.penalty_s = data.penalty_s;
+          }
+          renderTimerTick();
         } else if (type === 'radar') {
           showPowerupToast('📡 Radar active! Tracking live distance for 60s');
         } else if (type === 'boost') {

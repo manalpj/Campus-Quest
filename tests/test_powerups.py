@@ -14,6 +14,7 @@ def clean_test_db(tmp_path, monkeypatch):
     """Ensure an isolated database for each test run."""
     test_db = tmp_path / "test_powerups.db"
     monkeypatch.setattr(config, "DB_PATH", str(test_db))
+    monkeypatch.setattr(config, "HINT_PENALTY_S", 300)
     db.init_db(str(test_db))
 
 
@@ -66,7 +67,7 @@ def test_setup():
 
 
 def test_hint_powerup_adds_penalty_and_prevents_duplicate_charge(test_setup):
-    """Hint power-up adds 180s penalty, reveals hint, and does not charge twice for the same checkpoint."""
+    """Hint power-up adds 300s (5m) penalty, reveals hint, and does not charge twice for the same checkpoint."""
     client = test_setup["client"]
 
     # Before hint: state has no active_hint
@@ -80,14 +81,14 @@ def test_hint_powerup_adds_penalty_and_prevents_duplicate_charge(test_setup):
     data = res.json()
     assert data["powerup"] == "hint"
     assert data["hint"] == "Hint for Spot 1"
-    assert data["penalty_added_s"] == 180
-    assert data["penalty_s"] == 180
+    assert data["penalty_added_s"] == 300
+    assert data["penalty_s"] == 300
     assert data["already_revealed"] is False
 
     # State now includes active_hint and penalty_s
     st2 = client.get("/api/state").json()
     assert st2["active_hint"] == "Hint for Spot 1"
-    assert st2["penalty_s"] == 180
+    assert st2["penalty_s"] == 300
 
     # Second call for the same checkpoint: returns hint with 0 added penalty
     res2 = client.post("/api/powerup/hint")
@@ -95,13 +96,13 @@ def test_hint_powerup_adds_penalty_and_prevents_duplicate_charge(test_setup):
     data2 = res2.json()
     assert data2["hint"] == "Hint for Spot 1"
     assert data2["penalty_added_s"] == 0
-    assert data2["penalty_s"] == 180
+    assert data2["penalty_s"] == 300
     assert data2["already_revealed"] is True
 
     # Check leaderboard adjusted time includes the penalty
     lb = client.get("/api/leaderboard").json()
     team_entry = [t for t in lb if t["name"] == "Power Testers"][0]
-    assert team_entry["adjusted_time_s"] == 180
+    assert team_entry["adjusted_time_s"] == 300
 
 
 def test_radar_powerup_activation_and_ping_exposure(test_setup):

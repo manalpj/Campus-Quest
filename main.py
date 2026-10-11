@@ -1217,7 +1217,7 @@ def activate_powerup(
     """Activate a player power-up (hint, radar, boost).
 
     Requires authenticated team device. Game must be running.
-    - hint: adds HINT_PENALTY_S (+3m) penalty, reveals checkpoint hint. Max 1 per checkpoint.
+    - hint: adds HINT_PENALTY_S (+5m) penalty, reveals checkpoint hint. Max 1 per checkpoint.
     - radar: consumes 1 radar, activates live distance tracking for RADAR_DURATION_S (60s).
     - boost: consumes 1 boost, expands geofence radius by BOOST_PERCENT (+30%) for BOOST_DURATION_S (120s).
     """
