@@ -574,6 +574,20 @@
 **Q2: Why list trust pages like `/privacy` and `/terms` alongside the main app in the README quickstart?**  
 **A2:** Evaluators reviewing a repository need to verify not just the core gameplay, but also the hygiene, compliance, and user safety aspects of the application. Placing direct links to `/privacy`, `/terms`, and `/healthz` right next to `/` and `/gods` in the README enables reviewers to immediately test and inspect all application surfaces without guessing URL routes.
 
+---
 
+## Task 26: Final checks and demo support
 
+### 5-Line Interview Summary
+- Added CLI support for `seed.py --demo` to populate the real verified checkpoints from `docs/CHECKPOINTS_DRAFT.md`.
+- Enforced strict production safeguards requiring `--force` to run `seed.py` whenever `config.ENV == "production"`.
+- Created `docs/FINAL_CHECKLIST.md` merging Section 8.8 submission requirements with production Railway deployment and field testing checks.
+- Formulated `docs/DEMO_SCRIPT.md` detailing a 2.5-minute video presentation with exact timings and explicit announcements of test mode vs real walks.
+- Added comprehensive unit tests in `tests/test_seed.py` covering CLI options, demo data seeding, and production safety guards.
 
+### Interview Questions & Answers
+**Q1: Why does `seed.py` strictly require the `--force` flag in production environments?**  
+**A1:** Accidentally running a database seed script against a live production deployment would truncate or overwrite existing checkpoints, wiping out team progress in the middle of a live campus event. Requiring `--force` when `ENV=production` ensures an operator must consciously acknowledge the risk, preventing accidental data loss from automated deployment scripts or developer mistakes.
+
+**Q2: Why does the demo video script specifically require stating out loud when test mode is active?**  
+**A2:** In GPS-based applications, it is impossible for an evaluator watching a screen recording to differentiate between authentic satellite hardware fixes and simulated developer coordinates without explicit audio or visual disclosure. Calling out test mode coordinates aloud demonstrates transparency, honesty about simulated testing scenarios, and proves how the server handles geofence bounds in edge cases.
