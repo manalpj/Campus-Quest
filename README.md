@@ -1,6 +1,6 @@
 # Campus Quest 📍
 
-> **Geofenced Clue Hunt for the DAVV Takshashila Campus**  
+> **Geofenced Clue Hunt for the IET DAVV Campus**  
 > Built for Google Developer Groups on Campus (GDGoC Indore) Technical Vertical Recruitment — **Task 3**.
 
 [![Test Suite](https://img.shields.io/badge/pytest-168%20passed-brightgreen.svg)](#running-tests)
@@ -251,6 +251,9 @@ Open your browser:
 - **Player Interface**: [http://localhost:8000/](http://localhost:8000/)
 - **Organizer Admin**: [http://localhost:8000/gods](http://localhost:8000/gods)
 - **Big Screen Board**: [http://localhost:8000/board](http://localhost:8000/board)
+- **Privacy Notice**: [http://localhost:8000/privacy](http://localhost:8000/privacy)
+- **Event Terms & Rules**: [http://localhost:8000/terms](http://localhost:8000/terms)
+- **Health Check Probe**: [http://localhost:8000/healthz](http://localhost:8000/healthz)
 - **Interactive API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---

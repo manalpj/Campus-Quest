@@ -65,7 +65,7 @@ MAX_BODY_BYTES=65536
 LOGIN_ATTEMPTS_PER_MIN=5
 JOIN_ATTEMPTS_PER_MIN=10
 
-CAMPUS_NAME=DAVV Takshashila Campus
+CAMPUS_NAME=IET DAVV Campus
 CAMPUS_CENTER_LAT=22.6928
 CAMPUS_CENTER_LNG=75.8676
 CAMPUS_BOUNDS_SW_LAT=22.6850
@@ -130,7 +130,7 @@ Railway containers have ephemeral disk storage; every new deployment replaces th
 1. Open your generated Railway URL (`https://...up.railway.app`) in your phone browser (Chrome or Safari).
 2. When prompted: **Allow location access**.
 3. Confirm that:
-   - The map loads centered on DAVV Takshashila campus.
+   - The map loads centered on IET DAVV campus.
    - A blue location marker appears with an accuracy circle showing your live position.
    - The top status bar displays a live GPS accuracy reading (e.g., `GPS ±12m`).
    - The lock button, leaderboard button, and power-up action buttons are responsive.

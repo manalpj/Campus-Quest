@@ -556,5 +556,24 @@
 **Q2: Why did you compile `docs/INTERVIEW_PREP.md` with explicit file and function references?**  
 **A2:** During a technical interview, an applicant needs to connect conceptual explanations directly to concrete code implementations. Having the exact file and function names (such as `game.py:haversine_m`, `main.py:ping_location`, `db.py:write_tx`) readily memorized allows me to answer with precision, walk an interviewer through the exact lines of code, and demonstrate complete ownership of the entire codebase.
 
+---
+
+## Update: Campus Naming to IET DAVV Campus & Browser Page Indexing
+
+### 5-Line Interview Summary
+- Standardized the campus name across all documentation, configuration, and tests to "IET DAVV Campus".
+- Replaced outdated "Takshashila" references in `README.md`, `docs/DEPLOY.md`, `config.py`, and test fixtures.
+- Updated `config.py` default fallback for `CAMPUS_NAME` to ensure consistency with `.env.example`.
+- Expanded the "Open your browser" quickstart section in `README.md` to link all 7 user-facing and admin pages (Player, Admin, Board, Privacy, Terms, Health check, Docs).
+- Verified that all 168 automated tests continue to pass cleanly without failures.
+
+### Interview Questions & Answers
+**Q1: Why is it important to synchronize `CAMPUS_NAME` across `.env.example`, `config.py`, and documentation?**  
+**A1:** Default values in configuration modules act as the fallback whenever an environment variable is omitted or during new developer onboardings. Having inconsistent naming across `.env.example`, `config.py`, and deployment documentation causes confusing header displays or broken assumptions during orientation events. Standardizing on "IET DAVV Campus" guarantees that regardless of deployment environment, the correct campus identity is reflected.
+
+**Q2: Why list trust pages like `/privacy` and `/terms` alongside the main app in the README quickstart?**  
+**A2:** Evaluators reviewing a repository need to verify not just the core gameplay, but also the hygiene, compliance, and user safety aspects of the application. Placing direct links to `/privacy`, `/terms`, and `/healthz` right next to `/` and `/gods` in the README enables reviewers to immediately test and inspect all application surfaces without guessing URL routes.
+
+
 
 

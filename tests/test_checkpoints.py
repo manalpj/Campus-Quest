@@ -174,7 +174,7 @@ def test_create_checkpoint_validation_rules(admin_client):
     valid_lng = (config.CAMPUS_BOUNDS_SW_LNG + config.CAMPUS_BOUNDS_NE_LNG) / 2.0
 
     valid_payload = {
-        "name": "Takshashila Main Entrance",
+        "name": "IET DAVV Main Entrance",
         "lat": valid_lat,
         "lng": valid_lng,
         "radius": 30.0,

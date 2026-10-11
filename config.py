@@ -69,7 +69,7 @@ REGISTER_ATTEMPTS_PER_MIN: int = _get_int("REGISTER_ATTEMPTS_PER_MIN", 10)
 MAX_MEMBERS: int = _get_int("MAX_MEMBERS", 10)
 
 # 3. Campus Coordinates & Bounds
-CAMPUS_NAME: str = _get_str("CAMPUS_NAME", "DAVV IET Campus")
+CAMPUS_NAME: str = _get_str("CAMPUS_NAME", "IET DAVV Campus")
 CAMPUS_CENTER_LAT: float = _get_float("CAMPUS_CENTER_LAT", 22.6928)
 
 CAMPUS_CENTER_LNG: float = _get_float("CAMPUS_CENTER_LNG", 75.8676)
