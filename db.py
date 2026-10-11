@@ -516,6 +516,17 @@ def get_team_progress_counts(conn: sqlite3.Connection, team_id: int) -> tuple[in
     return cleared, total
 
 
+def get_team_last_progress_time(conn: sqlite3.Connection, team_id: int) -> Optional[float]:
+    """Return the unlocked_at timestamp of the most recently cleared/skipped checkpoint, or None."""
+    row = conn.execute(
+        "SELECT MAX(unlocked_at) FROM progress WHERE team_id = ?",
+        (team_id,),
+    ).fetchone()
+    if row and row[0] is not None:
+        return float(row[0])
+    return None
+
+
 def update_team_fix_and_streak(
     conn: sqlite3.Connection,
     team_id: int,

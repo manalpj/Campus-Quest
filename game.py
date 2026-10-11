@@ -208,16 +208,37 @@ def rank_teams(rows: list[dict]) -> list[dict]:
     return result
 
 
-def award_for(cleared_count: int) -> str | None:
-    """Determine power-up awarded for cleared checkpoint count.
+def award_for(
+    cleared_count: int,
+    time_to_find_s: float | None = None,
+    time_limit_s: float = 150.0,
+) -> str | None:
+    """Determine power-up awarded for cleared checkpoint count and search time.
 
-    Rule: Teams start with none. Clearing a checkpoint awards exactly one,
-    alternating Radar on odd clears (1st, 3rd, ...) and Radius boost on
-    even clears (2nd, 4th, ...).
+    Rules:
+    1. Alternate checkpoints only: only odd clears (1st, 3rd, 5th, ...) can earn a power-up.
+       Even clears (2nd, 4th, 6th, ...) always return None.
+    2. Time challenge: checkpoint must be found within the time limit (<= 2m 30s / 150s).
+       If time_to_find_s exceeds time_limit_s, returns None.
+    3. Eligible clears alternate between "radar" (1st, 5th, ...) and "boost" (3rd, 7th, ...).
     """
     if cleared_count <= 0:
         return None
-    return "radar" if (cleared_count % 2 == 1) else "boost"
+
+    # Alternate checkpoints only: 1, 3, 5, ...
+    if cleared_count % 2 == 0:
+        return None
+
+    # Time-to-find check: 2 minutes 30 seconds limit
+    if time_to_find_s is not None and time_to_find_s > time_limit_s:
+        return None
+
+    # Alternate between Radar and Boost across eligible stops:
+    # 1st clear -> index 0 (radar)
+    # 3rd clear -> index 1 (boost)
+    # 5th clear -> index 2 (radar)
+    eligible_index = (cleared_count - 1) // 2
+    return "radar" if (eligible_index % 2 == 0) else "boost"
 
 
 determine_awarded_powerup = award_for

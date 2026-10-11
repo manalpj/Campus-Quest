@@ -107,6 +107,7 @@ HINT_PENALTY_S: int = _get_int("HINT_PENALTY_S", 180)
 RADAR_DURATION_S: int = _get_int("RADAR_DURATION_S", 60)
 BOOST_DURATION_S: int = _get_int("BOOST_DURATION_S", 120)
 BOOST_PERCENT: float = _get_float("BOOST_PERCENT", 0.30)
+POWERUP_FIND_TIME_LIMIT_S: int = _get_int("POWERUP_FIND_TIME_LIMIT_S", 150)
 SKIP_WAIT_S: int = _get_int("SKIP_WAIT_S", 600)
 SKIP_PENALTY_S: int = _get_int("SKIP_PENALTY_S", 600)
 

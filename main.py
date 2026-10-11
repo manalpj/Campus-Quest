@@ -317,7 +317,7 @@ def get_rules():
             },
             {
                 "title": "Power-ups",
-                "text": f"Hint adds a {hint_min}-minute penalty (+{config.HINT_PENALTY_S}s) and reveals a clear clue. Radar shows live distance for {config.RADAR_DURATION_S}s. Radius Boost expands geofences by {boost_pct}% for {config.BOOST_DURATION_S}s.",
+                "text": f"Earned on alternate checkpoints (1, 3, 5, ...) found within {config.POWERUP_FIND_TIME_LIMIT_S // 60}m {config.POWERUP_FIND_TIME_LIMIT_S % 60}s ({config.POWERUP_FIND_TIME_LIMIT_S}s). Hint adds a {hint_min}-minute penalty (+{config.HINT_PENALTY_S}s) and reveals a clear clue. Radar shows live distance for {config.RADAR_DURATION_S}s. Radius Boost expands geofences by {boost_pct}% for {config.BOOST_DURATION_S}s.",
             },
             {
                 "title": "Skipping Checkpoints",
@@ -347,6 +347,7 @@ def get_rules():
             },
         ],
         "values": {
+            "powerup_find_time_limit_s": config.POWERUP_FIND_TIME_LIMIT_S,
             "hint_penalty_s": config.HINT_PENALTY_S,
             "skip_wait_s": config.SKIP_WAIT_S,
             "skip_penalty_s": config.SKIP_PENALTY_S,
@@ -1444,8 +1445,17 @@ def ping_location(
         cleared_after = cleared_before + 1
         is_last = (cleared_after >= total)
 
-        # Alternating power-up award: 1st/3rd -> Radar, 2nd/4th -> Boost
-        awarded = game.award_for(cleared_after)
+        # Time taken to find this specific checkpoint (from game start or previous unlock/skip)
+        prev_progress_time = db.get_team_last_progress_time(conn, team["id"])
+        checkpoint_start_ts = prev_progress_time if prev_progress_time is not None else started_at
+        time_to_find_s = max(0.0, now - checkpoint_start_ts)
+
+        # Power-up award: Alternate checkpoints (1, 3, 5, ...) found within 2m 30s limit
+        awarded = game.award_for(
+            cleared_after,
+            time_to_find_s=time_to_find_s,
+            time_limit_s=config.POWERUP_FIND_TIME_LIMIT_S,
+        )
 
         unlocked = db.unlock_checkpoint(
             conn=conn,

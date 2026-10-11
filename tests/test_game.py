@@ -168,13 +168,29 @@ def test_rank_teams_zero_cleared_at_bottom():
 
 
 def test_determine_awarded_powerup():
-    """Alternates Radar (odd clears) and Boost (even clears)."""
+    """Awards power-ups only on alternate clears (1, 3, 5, ...) found within 150s (2m 30s)."""
+    # Alternate checkpoints (odd: 1, 3, 5; even clears get None)
     assert determine_awarded_powerup(1) == "radar"
-    assert determine_awarded_powerup(2) == "boost"
-    assert determine_awarded_powerup(3) == "radar"
-    assert determine_awarded_powerup(4) == "boost"
+    assert determine_awarded_powerup(2) is None
+    assert determine_awarded_powerup(3) == "boost"
+    assert determine_awarded_powerup(4) is None
+    assert determine_awarded_powerup(5) == "radar"
+    assert determine_awarded_powerup(6) is None
     assert determine_awarded_powerup(0) is None
     assert determine_awarded_powerup(-1) is None
+
+    # Within 2 min 30 sec (<= 150s)
+    assert determine_awarded_powerup(1, time_to_find_s=30.0, time_limit_s=150.0) == "radar"
+    assert determine_awarded_powerup(1, time_to_find_s=150.0, time_limit_s=150.0) == "radar"
+    assert determine_awarded_powerup(3, time_to_find_s=120.0, time_limit_s=150.0) == "boost"
+
+    # Exceeding 2 min 30 sec (> 150s) -> None
+    assert determine_awarded_powerup(1, time_to_find_s=150.1, time_limit_s=150.0) is None
+    assert determine_awarded_powerup(1, time_to_find_s=200.0, time_limit_s=150.0) is None
+    assert determine_awarded_powerup(3, time_to_find_s=155.0, time_limit_s=150.0) is None
+
+    # Even checkpoint never awards powerup even if fast
+    assert determine_awarded_powerup(2, time_to_find_s=20.0, time_limit_s=150.0) is None
 
 
 def test_compute_effective_radius():

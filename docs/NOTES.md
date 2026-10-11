@@ -610,3 +610,22 @@
 **Q2: How did you prevent dynamic clue card sizing from covering power-up controls or Leaflet map zoom buttons?**  
 **A2:** We placed the power-up tray and the active clue card inside a dedicated flexbox column container (`.game-bottom-hud`) pinned to the bottom with safe-area insets. By setting the power-up tray to `align-self: flex-start`, power-up buttons naturally sit directly above the clue card on the bottom-left regardless of card content height. Similarly, we offset the bottom-right Leaflet zoom controls so they hover above the bottom HUD without overlapping.
 
+---
+
+## Task: Alternate Checkpoint Power-ups with 2m 30s Speed Bonus
+
+### 5-Line Interview Summary
+- Added `POWERUP_FIND_TIME_LIMIT_S` (150 seconds / 2m 30s) configuration to `config.py` and `.env.example`.
+- Refactored pure logic in `game.award_for` to only grant power-ups on alternate checkpoint clears (1st, 3rd, 5th, ...).
+- Enforced a speed qualification check requiring teams to find the checkpoint within 150 seconds to receive the power-up.
+- Added `db.get_team_last_progress_time` to compute checkpoint search durations authoritatively on the server clock.
+- Updated automated test suites in `tests/test_game.py` and `tests/test_powerups.py` confirming alternate stop qualification and time limit enforcement.
+
+### Interview Questions & Answers
+**Q1: Why is the 2m 30s time limit measured on the server rather than using timestamps sent by the player's phone?**  
+**A1:** Client devices can manipulate their internal system clock, buffer and delay GPS packets, or fake elapsed intervals. Relying on client-reported search duration would make power-up qualification trivial to cheat. Measuring elapsed time on the server between the prior checkpoint unlock timestamp (or game start) and the current unlock timestamp guarantees authoritative fair play across all teams.
+
+**Q2: How does the server determine when search began for the 1st checkpoint versus subsequent checkpoints?**  
+**A2:** For the very first checkpoint, the clue becomes active when the global start countdown finishes, so the search interval is `now - started_at`. For all subsequent checkpoints, search time starts the exact second the previous checkpoint was cleared or skipped, queried via `SELECT MAX(unlocked_at) FROM progress WHERE team_id = ?`.
+
+

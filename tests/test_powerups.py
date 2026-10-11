@@ -189,19 +189,19 @@ def test_boost_powerup_expands_radius(test_setup):
 
 
 def test_alternating_powerup_awards_on_gps_unlocks(test_setup):
-    """GPS unlocks award alternating power-ups: 1st clear gives Radar, 2nd gives Boost."""
+    """GPS unlocks award power-ups on alternate checkpoints (1st Radar, 2nd None, 3rd Boost) if under 150s."""
     client = test_setup["client"]
 
     # Spot 1 coordinates
     lat1, lng1 = 22.6928, 75.8676
 
-    # Unlock Spot 1 (2 inside fixes)
+    # Unlock Spot 1 (within 150s from start) -> Checkpoint 1 awards Radar
     client.post("/api/ping", json={"lat": lat1, "lng": lng1, "accuracy": 10.0})
     u1 = client.post("/api/ping", json={"lat": lat1, "lng": lng1, "accuracy": 10.0}).json()
     assert u1["status"] == "unlocked"
     assert u1["awarded_powerup"] == "radar"
 
-    # Check inventory in state
+    # Check inventory in state: 1 Radar, 0 Boost
     st1 = client.get("/api/state").json()
     assert st1["radar_left"] == 1
     assert st1["boost_left"] == 0
@@ -215,16 +215,56 @@ def test_alternating_powerup_awards_on_gps_unlocks(test_setup):
     with db.write_tx(conn):
         conn.execute("UPDATE teams SET last_fix_ts = ?", (now - 30.0,))
 
-    # Unlock Spot 2 (2 inside fixes)
+    # Unlock Spot 2 -> Even clear (2nd checkpoint), awards NO powerup
     client.post("/api/ping", json={"lat": lat2, "lng": lng2, "accuracy": 10.0})
     u2 = client.post("/api/ping", json={"lat": lat2, "lng": lng2, "accuracy": 10.0}).json()
     assert u2["status"] == "unlocked"
-    assert u2["awarded_powerup"] == "boost"
+    assert u2["awarded_powerup"] is None
 
-    # Check inventory in state: now has 1 Radar and 1 Boost!
+    # Check inventory: still 1 Radar, 0 Boost
     st2 = client.get("/api/state").json()
     assert st2["radar_left"] == 1
-    assert st2["boost_left"] == 1
+    assert st2["boost_left"] == 0
+
+    # Spot 3 coordinates (~45m north)
+    lat3, lng3 = 22.6936, 75.8676
+
+    # Simulate walking to Spot 3 (35s elapsed)
+    now = time.time()
+    with db.write_tx(conn):
+        conn.execute("UPDATE teams SET last_fix_ts = ?", (now - 35.0,))
+
+    # Unlock Spot 3 -> Alternate clear (3rd checkpoint), awards Boost!
+    client.post("/api/ping", json={"lat": lat3, "lng": lng3, "accuracy": 10.0})
+    u3 = client.post("/api/ping", json={"lat": lat3, "lng": lng3, "accuracy": 10.0}).json()
+    assert u3["status"] == "unlocked"
+    assert u3["awarded_powerup"] == "boost"
+
+    # Check inventory in state: now has 1 Radar and 1 Boost!
+    st3 = client.get("/api/state").json()
+    assert st3["radar_left"] == 1
+    assert st3["boost_left"] == 1
+
+
+def test_checkpoint_taking_longer_than_2m30s_awards_no_powerup(test_setup):
+    """If finding the checkpoint exceeds 2m 30s (150s), no power-up is awarded."""
+    client = test_setup["client"]
+    conn = db.get_connection(test_setup["db_path"])
+
+    # Simulate game started 200 seconds ago (exceeding 150s limit)
+    now = time.time()
+    db.set_setting(conn, "started_at", str(now - 200.0))
+
+    lat1, lng1 = 22.6928, 75.8676
+    client.post("/api/ping", json={"lat": lat1, "lng": lng1, "accuracy": 10.0})
+    u1 = client.post("/api/ping", json={"lat": lat1, "lng": lng1, "accuracy": 10.0}).json()
+    assert u1["status"] == "unlocked"
+    # Even though it's checkpoint 1, taking > 150s forfeits the power-up
+    assert u1["awarded_powerup"] is None
+
+    st = client.get("/api/state").json()
+    assert st["radar_left"] == 0
+    assert st["boost_left"] == 0
 
 
 def test_boost_cannot_use_with_none_left(test_setup):
