@@ -520,4 +520,22 @@
 **Q2: Why is the universal `:focus-visible` ring important, and why set `min-height: 44px` on all buttons?**  
 **A2:** Keyboard and screen-reader users rely on `:focus-visible` to know exactly which control is active without adding distracting outlines during mouse clicks. For mobile players running outdoors, touch targets smaller than 44px lead to frequent mis-taps. Setting `min-height: 44px` ensures compliance with WCAG 2.5.5 and guarantees that buttons are effortless to tap on phones of any size.
 
+---
+
+## Task 24: Security review and hardening
+
+### 5-Line Interview Summary
+- Conducted a comprehensive audit of the entire codebase covering authentication, route authorization, input limits, rate limiting, and SQL injection safety.
+- Isolated sliding-window rate limiter buckets per action (`login:`, `join:`, `register:`) to prevent cross-endpoint bucket collisions and throttled team registrations.
+- Hardened client IP extraction from reverse-proxy `X-Forwarded-For` headers by selecting the immediate client hop to defend against forged client headers.
+- Capped maximum team members at 10 to prevent bloated payloads and rejected chunked transfer encoding and negative body lengths.
+- Added re-activation protection for Radar and Boost power-ups to avoid burning charges, and handled concurrent unlock ping races gracefully.
+
+### Interview Questions & Answers
+**Q1: Why did using a shared client IP as the rate limiter key create an issue, and how did namespacing fix it?**  
+**A1:** Previously, `/api/gods/login` and `/api/join` passed `client_ip` directly to the rate limiter without an action prefix. Because both endpoints stored timestamps in the same in-memory list `_buckets[client_ip]`, attempts on one endpoint counted against the other. For example, failed login attempts on campus Wi-Fi would prematurely lock out teams trying to join with a code. Namespacing keys with an action prefix (e.g. `login:{ip}`, `join:{ip}`, `register:{ip}`) keeps rate limits completely isolated per endpoint.
+
+**Q2: How does the application ensure that concurrent requests cannot double-unlock a checkpoint or double-apply a power-up penalty?**  
+**A2:** SQLite is run in WAL mode with autocommit disabled (`isolation_level=None`), and state-mutating transactions use `BEGIN IMMEDIATE` via `db.write_tx`. This acquires SQLite's write lock immediately at transaction start, preventing interleaved check-then-insert operations. Furthermore, the database schema enforces composite primary keys (`PRIMARY KEY (team_id, checkpoint_id)`) on `progress` and `hint_uses`, guaranteeing at the database level that duplicate unlocks or hints cannot be recorded even under simultaneous requests.
+
 

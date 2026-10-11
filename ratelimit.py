@@ -18,16 +18,17 @@ _buckets: Dict[str, List[float]] = defaultdict(list)
 def get_client_ip(request: Request) -> str:
     """Extract client IP address, handling reverse proxy headers when configured.
 
-    When FORWARDED_ALLOW_IPS is configured (e.g. on Railway), parses X-Forwarded-For
-    to identify the real originating client IP.
+    When FORWARDED_ALLOW_IPS is configured (e.g. on Railway), parses X-Forwarded-For.
+    In a reverse-proxy chain where proxies append hops, the last entry is the immediate
+    client connecting to the proxy, preventing attackers from injecting arbitrary spoofed IPs
+    in the first position.
     """
     if config.FORWARDED_ALLOW_IPS:
         x_forwarded_for = request.headers.get("x-forwarded-for")
         if x_forwarded_for:
-            # First entry is the client IP before proxy hops
-            client_ip = x_forwarded_for.split(",")[0].strip()
-            if client_ip:
-                return client_ip
+            parts = [p.strip() for p in x_forwarded_for.split(",") if p.strip()]
+            if parts:
+                return parts[-1]
 
     if request.client and request.client.host:
         return request.client.host

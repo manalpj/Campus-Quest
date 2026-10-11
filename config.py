@@ -65,6 +65,8 @@ ADMIN_PASS: str = _get_str("ADMIN_PASS", "change-me-to-a-secure-passphrase")
 SECRET_KEY: str = _get_str("SECRET_KEY", "change-me-to-a-random-32-byte-hex-token")
 LOGIN_ATTEMPTS_PER_MIN: int = _get_int("LOGIN_ATTEMPTS_PER_MIN", 5)
 JOIN_ATTEMPTS_PER_MIN: int = _get_int("JOIN_ATTEMPTS_PER_MIN", 10)
+REGISTER_ATTEMPTS_PER_MIN: int = _get_int("REGISTER_ATTEMPTS_PER_MIN", 10)
+MAX_MEMBERS: int = _get_int("MAX_MEMBERS", 10)
 
 # 3. Campus Coordinates & Bounds
 CAMPUS_NAME: str = _get_str("CAMPUS_NAME", "DAVV IET Campus")

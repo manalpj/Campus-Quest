@@ -79,6 +79,8 @@ class TeamRegisterRequest(BaseModel):
         cleaned = [m.strip() for m in v if isinstance(m, str) and m.strip()]
         if len(cleaned) < config.MIN_MEMBERS:
             raise ValueError(f"Team must have at least {config.MIN_MEMBERS} members")
+        if len(cleaned) > config.MAX_MEMBERS:
+            raise ValueError(f"Team cannot have more than {config.MAX_MEMBERS} members")
         for m in cleaned:
             if len(m) < 1 or len(m) > 30:
                 raise ValueError("Member names must be between 1 and 30 characters")
@@ -206,22 +208,35 @@ class CheckpointUpdateRequest(BaseModel):
 @app.middleware("http")
 async def security_and_header_middleware(request: Request, call_next):
     """Enforce payload size boundaries and security headers."""
+    te = request.headers.get("transfer-encoding", "").lower()
+    if "chunked" in te and request.url.path.startswith("/api/"):
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Chunked transfer encoding is not supported for API requests"},
+        )
+
     content_length = request.headers.get("content-length")
     if content_length:
         try:
-            if int(content_length) > config.MAX_BODY_BYTES:
+            cl = int(content_length)
+            if cl < 0 or cl > config.MAX_BODY_BYTES:
                 return JSONResponse(
                     status_code=413,
                     content={"detail": "Request payload exceeds size limit"},
                 )
         except ValueError:
-            pass
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Invalid Content-Length header"},
+            )
 
     response = await call_next(request)
     # Ensure Referrer-Policy is never 'no-referrer' so OSM tiles load correctly
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
+    if config.ENV == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 
@@ -418,7 +433,7 @@ def gods_login(
     """
     client_ip = ratelimit.get_client_ip(request)
     if ratelimit.is_rate_limited(
-        client_ip,
+        f"login:{client_ip}",
         max_attempts=config.LOGIN_ATTEMPTS_PER_MIN,
         window_s=60.0,
     ):
@@ -942,11 +957,23 @@ def wipe_event_data_endpoint(
 
 @app.post("/api/register", status_code=201)
 def register_team(
+    request: Request,
     response: Response,
     body: TeamRegisterRequest,
     conn: sqlite3.Connection = Depends(db.get_db),
 ):
     """Register a new team, store hashed device token, and set HttpOnly device cookie."""
+    client_ip = ratelimit.get_client_ip(request)
+    if ratelimit.is_rate_limited(
+        f"register:{client_ip}",
+        max_attempts=config.REGISTER_ATTEMPTS_PER_MIN,
+        window_s=60.0,
+    ):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many registration attempts. Please wait before retrying.",
+        )
+
     reg_open = db.get_setting(conn, "registration_open")
     if reg_open != "1":
         raise HTTPException(
@@ -987,7 +1014,7 @@ def join_team(
     """
     client_ip = ratelimit.get_client_ip(request)
     if ratelimit.is_rate_limited(
-        client_ip,
+        f"join:{client_ip}",
         max_attempts=config.JOIN_ATTEMPTS_PER_MIN,
         window_s=60.0,
     ):
@@ -1237,6 +1264,8 @@ def activate_powerup(
         }
 
     elif clean_type == "radar":
+        if game.is_powerup_active(fresh_team["radar_until"], now):
+            raise HTTPException(status_code=400, detail="Radar is already active")
         success, radar_until, remaining = db.use_radar(
             conn=conn,
             team_id=team["id"],
@@ -1253,6 +1282,8 @@ def activate_powerup(
         }
 
     elif clean_type == "boost":
+        if game.is_powerup_active(fresh_team["boost_until"], now):
+            raise HTTPException(status_code=400, detail="Radius boost is already active")
         success, boost_until, remaining = db.use_boost(
             conn=conn,
             team_id=team["id"],
@@ -1416,7 +1447,7 @@ def ping_location(
         # Alternating power-up award: 1st/3rd -> Radar, 2nd/4th -> Boost
         awarded = game.award_for(cleared_after)
 
-        db.unlock_checkpoint(
+        unlocked = db.unlock_checkpoint(
             conn=conn,
             team_id=team["id"],
             checkpoint_id=next_cp["id"],
@@ -1428,6 +1459,21 @@ def ping_location(
             awarded_powerup=awarded,
         )
         invalidate_leaderboard_cache()
+
+        if not unlocked:
+            subsequent_cp = db.get_team_next_checkpoint(conn, team["id"])
+            fresh_team = db.get_team_by_id(conn, team["id"]) or team
+            cleared_current, total_current = db.get_team_progress_counts(conn, team["id"])
+            if fresh_team["finished_at"] or (total_current > 0 and cleared_current >= total_current):
+                return {
+                    "status": "completed",
+                    "cleared": total_current,
+                    "total": total_current,
+                }
+            resp = {"status": "searching"}
+            if radar_active:
+                resp.update(radar_info)
+            return resp
 
         subsequent_cp = db.get_team_next_checkpoint(conn, team["id"])
 
