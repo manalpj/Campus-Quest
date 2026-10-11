@@ -591,3 +591,22 @@
 
 **Q2: Why does the demo video script specifically require stating out loud when test mode is active?**  
 **A2:** In GPS-based applications, it is impossible for an evaluator watching a screen recording to differentiate between authentic satellite hardware fixes and simulated developer coordinates without explicit audio or visual disclosure. Calling out test mode coordinates aloud demonstrates transparency, honesty about simulated testing scenarios, and proves how the server handles geofence bounds in edge cases.
+
+---
+
+## Task: Mobile HUD Overhaul and Navigation Menu Drawer
+
+### 5-Line Interview Summary
+- Removed the 4-button bottom navigation bar to maximize map visibility and eliminate duplicate leaderboard buttons.
+- Stacked the circular Menu and Leaderboard buttons in the top-left corner with 44px accessible touch targets.
+- Positioned the HUD status chips (checkpoints cleared, timer, GPS status) cleanly in the top-right header area.
+- Anchored active gameplay elements into a responsive bottom HUD container, keeping power-up controls visible on the bottom-left and zoom controls unobstructed on the bottom-right.
+- Transformed the hamburger menu into a full navigation drawer providing structured access to Team Details, Cleared Checkpoints history, Rules & FAQ, Privacy Policy, and Terms.
+
+### Interview Questions & Answers
+**Q1: Why did you eliminate the bottom tab bar in favor of a navigation drawer for a mobile geolocation game?**  
+**A1:** Geofenced outdoor games require as much visible map real estate as possible so players can orient themselves and navigate physical paths. Having a fixed bottom tab bar on mobile screens shrank the interactive map and collided with the clue card and power-up controls, while also duplicating the floating leaderboard button. Consolidating non-urgent panels (Team details, Rules, Route history, Privacy, Terms) into a drawer menu frees up the viewport for immediate gameplay.
+
+**Q2: How did you prevent dynamic clue card sizing from covering power-up controls or Leaflet map zoom buttons?**  
+**A2:** We placed the power-up tray and the active clue card inside a dedicated flexbox column container (`.game-bottom-hud`) pinned to the bottom with safe-area insets. By setting the power-up tray to `align-self: flex-start`, power-up buttons naturally sit directly above the clue card on the bottom-left regardless of card content height. Similarly, we offset the bottom-right Leaflet zoom controls so they hover above the bottom HUD without overlapping.
+

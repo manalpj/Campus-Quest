@@ -108,12 +108,22 @@ html:has(.board-body) {
   z-index: 1;
 }
 
+/* Top-left action button stack */
+.top-left-controls {
+  position: absolute;
+  top: max(var(--space-12), env(safe-area-inset-top));
+  left: max(var(--space-12), env(safe-area-inset-left));
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  pointer-events: auto;
+}
+
 /* Circular action buttons placed over the map */
 .map-btn {
-  position: absolute;
-  z-index: 1000;
-  width: 48px;
-  height: 48px;
+  width: 44px;
+  height: 44px;
   min-width: 44px;
   min-height: 44px;
   border-radius: 50%;
@@ -125,6 +135,12 @@ html:has(.board-body) {
   justify-content: center;
   cursor: pointer;
   padding: 0;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.map-btn:hover {
+  background-color: var(--bg);
+  border-color: var(--primary);
 }
 
 .map-btn:focus-visible {
@@ -209,8 +225,8 @@ html:has(.board-body) {
   border-radius: var(--radius) !important;
   overflow: hidden;
   box-shadow: none !important;
-  margin-right: max(var(--space-16), env(safe-area-inset-right)) !important;
-  margin-bottom: max(var(--space-24), env(safe-area-inset-bottom)) !important;
+  margin-right: max(var(--space-12), env(safe-area-inset-right)) !important;
+  margin-bottom: calc(190px + max(var(--space-12), env(safe-area-inset-bottom))) !important;
 }
 
 .leaflet-control-zoom a {
@@ -1195,14 +1211,14 @@ html:has(.board-body) {
 .game-status-bar {
   position: absolute;
   top: max(var(--space-12), env(safe-area-inset-top));
-  left: max(var(--space-12), env(safe-area-inset-left));
   right: max(var(--space-12), env(safe-area-inset-right));
   z-index: 1000;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: var(--space-8);
   pointer-events: none;
+  max-width: calc(100vw - 72px);
 }
 
 .status-bar-btn {
@@ -1380,19 +1396,33 @@ html:has(.board-body) {
   font-weight: 600;
 }
 
-/* Active Clue Card */
-.clue-card {
+/* Bottom Game HUD (Container for Power-ups & Clue Card) */
+.game-bottom-hud {
   position: absolute;
-  bottom: calc(56px + max(var(--space-16), env(safe-area-inset-bottom)));
+  bottom: max(var(--space-12), env(safe-area-inset-bottom));
   left: max(var(--space-12), env(safe-area-inset-left));
   right: max(var(--space-12), env(safe-area-inset-right));
   max-width: 480px;
   margin: 0 auto;
   z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  pointer-events: none;
+}
+
+.game-bottom-hud > * {
+  pointer-events: auto;
+}
+
+/* Active Clue Card */
+.clue-card {
+  width: 100%;
   background-color: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-16);
+  pointer-events: auto;
 }
 
 .clue-card-header {
@@ -1454,46 +1484,69 @@ html:has(.board-body) {
   outline-offset: 2px;
 }
 
-/* Bottom Game Navigation Tab Bar */
-.game-tab-bar {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
-  display: flex;
-  background-color: var(--surface);
-  border-top: 1px solid var(--border);
-  padding-bottom: env(safe-area-inset-bottom);
+/* Quest Menu Drawer */
+.nav-drawer-card {
+  max-width: 440px;
+  width: 100%;
 }
 
-.game-nav-btn {
-  flex: 1;
-  min-height: 52px;
+.nav-drawer-menu {
   display: flex;
   flex-direction: column;
+  gap: var(--space-8);
+  margin-bottom: var(--space-16);
+}
+
+.drawer-menu-item {
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-12) var(--space-16);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: var(--font-stack);
+  font-size: 0.9375rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.drawer-menu-item:hover {
+  background-color: var(--bg);
+  border-color: var(--primary);
+}
+
+.drawer-menu-item:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.drawer-item-icon {
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  background: transparent;
-  border: none;
-  border-top: 2px solid transparent;
-  color: var(--text-secondary);
-  font-family: var(--font-stack);
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.game-nav-btn:focus-visible {
-  outline: 2px solid var(--primary);
-  outline-offset: -2px;
-}
-
-.game-nav-btn.active {
   color: var(--primary);
-  border-top-color: var(--primary);
-  font-weight: 600;
+}
+
+.drawer-item-label {
+  flex: 1;
+  text-align: left;
+}
+
+.drawer-item-arrow {
+  color: var(--text-secondary);
+  font-size: 1rem;
+}
+
+.nav-drawer-footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-12);
 }
 
 /* Route History Modal */
@@ -1845,14 +1898,11 @@ html:has(.board-body) {
    ========================================================================== */
 
 .powerup-tray {
-  position: absolute;
-  left: var(--space-12);
-  right: var(--space-12);
-  bottom: calc(var(--tab-bar-height) + 140px);
-  z-index: 1000;
   display: flex;
+  align-self: flex-start;
   gap: var(--space-8);
   pointer-events: auto;
+  max-width: 100%;
 }
 
 .powerup-btn {

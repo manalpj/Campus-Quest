@@ -13,9 +13,9 @@
   <div id="map-container" role="region" aria-label="Interactive DAVV Campus Map">
     <div id="map" role="region" aria-label="DAVV Campus Map"></div>
 
-    <!-- Top Status Bar HUD -->
-    <header id="game-status-bar" class="game-status-bar" role="banner">
-      <button type="button" id="btn-nav" class="status-bar-btn" aria-label="Open quest route and history">
+    <!-- Top-Left Floating Controls: Menu & Leaderboard circle buttons stacked -->
+    <div class="top-left-controls" role="toolbar" aria-label="Game controls">
+      <button type="button" id="btn-nav" class="map-btn" aria-label="Open navigation menu">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="4" y1="6" x2="20" y2="6"></line>
           <line x1="4" y1="12" x2="20" y2="12"></line>
@@ -23,26 +23,23 @@
         </svg>
       </button>
 
+      <button type="button" id="btn-leaderboard" class="map-btn" aria-label="Open leaderboard">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 20V10"></path>
+          <path d="M12 20V4"></path>
+          <path d="M6 20v-6"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Top-Right Status Chips HUD -->
+    <header id="game-status-bar" class="game-status-bar" role="banner">
       <div class="status-chips-group">
         <span id="status-cleared" class="chip chip-cleared" aria-label="Cleared checkpoints: 0 of 0" title="Cleared checkpoints">0/0</span>
         <span id="status-timer" class="chip chip-timer" aria-label="Elapsed quest time: 00:00" title="Elapsed quest time">00:00</span>
         <span id="gps-status" class="chip chip-gps chip-waiting" role="status" aria-live="polite">Waiting for GPS...</span>
       </div>
     </header>
-
-    <button type="button" id="btn-leaderboard" class="map-btn map-btn-top-right" aria-label="Open leaderboard">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M18 20V10"></path>
-        <path d="M12 20V4"></path>
-        <path d="M6 20v-6"></path>
-      </svg>
-    </button>
-
-    <button type="button" id="btn-powerup" class="map-btn map-btn-bottom-left" aria-label="Use power-up" hidden>
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
-      </svg>
-    </button>
 
     <!-- Reliability & Operational Notices (Docked below status bar) -->
     <div id="reliability-notices-container" class="reliability-notices-container" aria-live="polite">
@@ -97,81 +94,54 @@
       </aside>
     </div>
 
-    <!-- Power-up Tray (Docked above clue card) -->
-    <div id="powerup-tray" class="powerup-tray" aria-label="Team power-ups" hidden>
-      <button type="button" id="btn-powerup-hint" class="powerup-btn" aria-label="Use Hint (+3 min penalty)">
-        <span class="powerup-btn-title">Hint</span>
-        <span id="powerup-hint-badge" class="powerup-badge badge-penalty">+3m</span>
-      </button>
+    <button type="button" id="btn-powerup" class="map-btn map-btn-bottom-left" aria-label="Use power-up" hidden>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+      </svg>
+    </button>
 
-      <button type="button" id="btn-powerup-radar" class="powerup-btn" aria-label="Use Radar (60s distance meter)">
-        <span class="powerup-btn-title">Radar</span>
-        <span id="powerup-radar-badge" class="powerup-badge">x0</span>
-      </button>
+    <!-- Bottom Game HUD (Power-ups on bottom-left, Clue Card docked at bottom) -->
+    <div id="game-bottom-hud" class="game-bottom-hud">
+      <!-- Power-up Tray (Docked on bottom-left above clue card) -->
+      <div id="powerup-tray" class="powerup-tray" aria-label="Team power-ups" hidden>
+        <button type="button" id="btn-powerup-hint" class="powerup-btn" aria-label="Use Hint (+3 min penalty)">
+          <span class="powerup-btn-title">Hint</span>
+          <span id="powerup-hint-badge" class="powerup-badge badge-penalty">+3m</span>
+        </button>
 
-      <button type="button" id="btn-powerup-boost" class="powerup-btn" aria-label="Use Radius Boost (+30% radius)">
-        <span class="powerup-btn-title">Boost</span>
-        <span id="powerup-boost-badge" class="powerup-badge">x0</span>
-      </button>
-    </div>
+        <button type="button" id="btn-powerup-radar" class="powerup-btn" aria-label="Use Radar (60s distance meter)">
+          <span class="powerup-btn-title">Radar</span>
+          <span id="powerup-radar-badge" class="powerup-badge">x0</span>
+        </button>
 
-    <!-- Active Clue Card (Docked above bottom navigation) -->
-    <section id="game-clue-card" class="clue-card" aria-label="Current Clue">
-      <div class="clue-card-header">
-        <div class="clue-tag-group">
-          <span class="clue-tag">Route Clue</span>
-          <span id="hud-radar-badge" class="hud-badge hud-radar" hidden>📡 <span id="hud-radar-text">--</span></span>
-          <span id="hud-boost-badge" class="hud-badge hud-boost" hidden>⚡ +30% (<span id="hud-boost-sec">120</span>s)</span>
-        </div>
-        <span id="clue-target-label" class="clue-target-label">Checkpoint</span>
-      </div>
-      <p id="clue-text" class="clue-text">Waiting for first clue...</p>
-      <div id="clue-hint-box" class="clue-hint-box" hidden>
-        <span class="hint-tag">Hint Revealed (+3m)</span>
-        <p id="clue-hint-text" class="clue-hint-text"></p>
-      </div>
-      <div class="clue-card-actions">
-        <button type="button" id="btn-skip-clue" class="btn-skip-clue" hidden aria-label="Skip current checkpoint (+10 min penalty)">
-          Skip Checkpoint (+10m)
+        <button type="button" id="btn-powerup-boost" class="powerup-btn" aria-label="Use Radius Boost (+30% radius)">
+          <span class="powerup-btn-title">Boost</span>
+          <span id="powerup-boost-badge" class="powerup-badge">x0</span>
         </button>
       </div>
-    </section>
 
-    <!-- Bottom Navigation Tab Bar (Map, Leaderboard, Team) -->
-    <nav id="game-tab-bar" class="game-tab-bar" role="tablist" aria-label="Player navigation">
-      <button type="button" id="tab-game-map" class="game-nav-btn active" role="tab" aria-selected="true" aria-controls="map">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
-          <line x1="8" y1="2" x2="8" y2="18"></line>
-          <line x1="16" y1="6" x2="16" y2="22"></line>
-        </svg>
-        <span>Map</span>
-      </button>
-      <button type="button" id="tab-game-leaderboard" class="game-nav-btn" role="tab" aria-selected="false" aria-controls="view-leaderboard">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M18 20V10"></path>
-          <path d="M12 20V4"></path>
-          <path d="M6 20v-6"></path>
-        </svg>
-        <span>Leaderboard</span>
-      </button>
-      <button type="button" id="tab-game-team" class="game-nav-btn" role="tab" aria-selected="false" aria-controls="view-team">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-        </svg>
-        <span>Team</span>
-      </button>
-      <button type="button" id="tab-game-rules" class="game-nav-btn" role="tab" aria-selected="false" aria-controls="view-rules">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-        </svg>
-        <span>Rules</span>
-      </button>
-    </nav>
+      <!-- Active Clue Card (Docked at bottom) -->
+      <section id="game-clue-card" class="clue-card" aria-label="Current Clue">
+        <div class="clue-card-header">
+          <div class="clue-tag-group">
+            <span class="clue-tag">Route Clue</span>
+            <span id="hud-radar-badge" class="hud-badge hud-radar" hidden>📡 <span id="hud-radar-text">--</span></span>
+            <span id="hud-boost-badge" class="hud-badge hud-boost" hidden>⚡ +30% (<span id="hud-boost-sec">120</span>s)</span>
+          </div>
+          <span id="clue-target-label" class="clue-target-label">Checkpoint</span>
+        </div>
+        <p id="clue-text" class="clue-text">Waiting for first clue...</p>
+        <div id="clue-hint-box" class="clue-hint-box" hidden>
+          <span class="hint-tag">Hint Revealed (+3m)</span>
+          <p id="clue-hint-text" class="clue-hint-text"></p>
+        </div>
+        <div class="clue-card-actions">
+          <button type="button" id="btn-skip-clue" class="btn-skip-clue" hidden aria-label="Skip current checkpoint (+10 min penalty)">
+            Skip Checkpoint (+10m)
+          </button>
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- Player Onboarding & Team Registration Overlay -->
@@ -393,15 +363,97 @@
     </div>
   </div>
 
-  <!-- Navigation / Route History Overlay -->
+  <!-- Quest Navigation Menu Drawer / Modal -->
   <div id="nav-overlay" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="nav-title" hidden>
+    <div class="overlay-card nav-drawer-card">
+      <div class="overlay-header nav-drawer-header">
+        <div>
+          <h2 id="nav-title" class="overlay-title">Quest Menu</h2>
+          <p class="overlay-subtitle">Campus Quest &bull; DAVV IET</p>
+        </div>
+        <button type="button" id="btn-close-nav" class="btn-icon-close" aria-label="Close menu">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+
+      <nav class="nav-drawer-menu" aria-label="Game navigation links">
+        <button type="button" id="btn-menu-team" class="drawer-menu-item">
+          <span class="drawer-item-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </span>
+          <span class="drawer-item-label">Team Details</span>
+          <span class="drawer-item-arrow" aria-hidden="true">&rarr;</span>
+        </button>
+
+        <button type="button" id="btn-menu-history" class="drawer-menu-item">
+          <span class="drawer-item-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </span>
+          <span class="drawer-item-label">Cleared Checkpoints</span>
+          <span class="drawer-item-arrow" aria-hidden="true">&rarr;</span>
+        </button>
+
+        <button type="button" id="btn-menu-rules" class="drawer-menu-item">
+          <span class="drawer-item-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+          </span>
+          <span class="drawer-item-label">Quest Rules & FAQ</span>
+          <span class="drawer-item-arrow" aria-hidden="true">&rarr;</span>
+        </button>
+
+        <a href="/privacy" target="_blank" rel="noopener" class="drawer-menu-item drawer-menu-link">
+          <span class="drawer-item-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </span>
+          <span class="drawer-item-label">Privacy Policy</span>
+          <span class="drawer-item-arrow" aria-hidden="true">&nearr;</span>
+        </a>
+
+        <a href="/terms" target="_blank" rel="noopener" class="drawer-menu-item drawer-menu-link">
+          <span class="drawer-item-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+          </span>
+          <span class="drawer-item-label">Terms & Rules</span>
+          <span class="drawer-item-arrow" aria-hidden="true">&nearr;</span>
+        </a>
+      </nav>
+
+      <div class="nav-drawer-footer">
+        <p class="support-help-line">Need help? Find an organizer: <strong class="help-org-name">GDGoC DAVV</strong> (<span class="help-org-contact">gdgoc@davv.ac.in</span>)</p>
+        <button type="button" id="btn-close-nav-bottom" class="btn btn-secondary btn-block">Back to Map</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cleared Checkpoints / Route History Modal -->
+  <div id="view-history" class="overlay-modal" role="dialog" aria-modal="true" aria-labelledby="history-title" hidden>
     <div class="overlay-card history-modal-card">
       <div class="history-modal-header">
         <div>
-          <h2 id="nav-title" class="overlay-title">Route & History</h2>
-          <p class="overlay-subtitle">Cleared checkpoints & stories</p>
+          <h2 id="history-title" class="overlay-title">Cleared Checkpoints</h2>
+          <p class="overlay-subtitle">Your completed route & unlocked stories</p>
         </div>
-        <button type="button" id="btn-close-nav" class="btn-icon-close" aria-label="Close route history">
+        <button type="button" id="btn-close-history" class="btn-icon-close" aria-label="Close route history">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -412,6 +464,10 @@
       <div id="history-items-container" class="history-items-list">
         <p class="empty-history-note">No checkpoints cleared yet. Follow your clue and walk to the first location!</p>
       </div>
+
+      <button type="button" id="btn-close-history-bottom" class="btn btn-secondary btn-block">
+        Back to Map
+      </button>
     </div>
   </div>
 

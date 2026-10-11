@@ -57,9 +57,17 @@ document.addEventListener('DOMContentLoaded', () => {
   const finishFinalRank = document.getElementById('finish-final-rank');
   const finishFinalTime = document.getElementById('finish-final-time');
 
-  // Route & History Overlay elements
+  // Quest Menu Drawer & History elements
   const navOverlay = document.getElementById('nav-overlay');
   const btnCloseNav = document.getElementById('btn-close-nav');
+  const btnCloseNavBottom = document.getElementById('btn-close-nav-bottom');
+  const btnMenuTeam = document.getElementById('btn-menu-team');
+  const btnMenuHistory = document.getElementById('btn-menu-history');
+  const btnMenuRules = document.getElementById('btn-menu-rules');
+
+  const viewHistory = document.getElementById('view-history');
+  const btnCloseHistory = document.getElementById('btn-close-history');
+  const btnCloseHistoryBottom = document.getElementById('btn-close-history-bottom');
   const historyItemsContainer = document.getElementById('history-items-container');
 
   // Unlock Modal elements
@@ -650,6 +658,12 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchLeaderboard();
       }
     }
+    if (viewHistory) {
+      viewHistory.hidden = (target !== 'history');
+    }
+    if (navOverlay) {
+      navOverlay.hidden = true;
+    }
     if (target === 'map' && mapInstance) {
       setTimeout(() => {
         mapInstance.invalidateSize();
@@ -703,6 +717,32 @@ document.addEventListener('DOMContentLoaded', () => {
     btnCloseNav.addEventListener('click', () => {
       navOverlay.hidden = true;
     });
+  }
+
+  if (btnCloseNavBottom && navOverlay) {
+    btnCloseNavBottom.addEventListener('click', () => {
+      navOverlay.hidden = true;
+    });
+  }
+
+  if (btnMenuTeam) {
+    btnMenuTeam.addEventListener('click', () => switchTab('team'));
+  }
+
+  if (btnMenuHistory) {
+    btnMenuHistory.addEventListener('click', () => switchTab('history'));
+  }
+
+  if (btnMenuRules) {
+    btnMenuRules.addEventListener('click', () => switchTab('rules'));
+  }
+
+  if (btnCloseHistory) {
+    btnCloseHistory.addEventListener('click', () => switchTab('map'));
+  }
+
+  if (btnCloseHistoryBottom) {
+    btnCloseHistoryBottom.addEventListener('click', () => switchTab('map'));
   }
 
   if (btnUnlockContinue && unlockOverlay) {

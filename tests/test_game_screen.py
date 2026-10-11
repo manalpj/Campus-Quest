@@ -205,3 +205,44 @@ def test_api_state_when_all_checkpoints_completed(player_client, two_checkpoints
     assert data["finished"] is True
     assert data["current_clue"] is None
     assert len(data["cleared_checkpoints"]) == 2
+
+
+def test_player_ui_layout_and_navigation_drawer():
+    """Verify clean UI layout: no bottom tab bar, stacked top-left controls, top-right status, and drawer menu."""
+    client = TestClient(app)
+    res = client.get("/")
+    assert res.status_code == 200
+    html = res.text
+
+    # Top-left controls: menu and leaderboard buttons stacked
+    assert 'class="top-left-controls"' in html
+    assert 'id="btn-nav"' in html
+    assert 'id="btn-leaderboard"' in html
+
+    # Top status HUD chips
+    assert 'id="game-status-bar"' in html
+    assert 'id="status-cleared"' in html
+    assert 'id="status-timer"' in html
+    assert 'id="gps-status"' in html
+
+    # Bottom HUD with power-ups on bottom-left and clue card
+    assert 'id="game-bottom-hud"' in html
+    assert 'id="powerup-tray"' in html
+    assert 'id="game-clue-card"' in html
+
+    # Bottom 4-button tab bar is removed
+    assert 'id="game-tab-bar"' not in html
+    assert 'id="tab-game-map"' not in html
+
+    # Navigation menu drawer has required options
+    assert 'id="nav-overlay"' in html
+    assert 'id="btn-menu-team"' in html
+    assert 'id="btn-menu-history"' in html
+    assert 'id="btn-menu-rules"' in html
+    assert 'href="/privacy"' in html
+    assert 'href="/terms"' in html
+
+    # Checkpoint history modal exists
+    assert 'id="view-history"' in html
+    assert 'id="history-items-container"' in html
+
