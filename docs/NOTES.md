@@ -703,3 +703,21 @@
 **Q2: Why is the CSV encoded with UTF-8 BOM (`utf-8-sig`) rather than standard UTF-8?**  
 **A2:** By default on Windows, Microsoft Excel attempts to decode plain UTF-8 CSV files using the operating system's legacy ANSI/system code page, which garbles special characters, accented letters, and non-ASCII text. Prepending the standard UTF-8 Byte Order Mark (`\xef\xbb\xbf` via Python's `utf-8-sig` encoding) explicitly signals to Excel that the byte stream is UTF-8, rendering all characters correctly across operating systems.
 
+---
+
+## Task: Admin Live Team Map (Bonus 4)
+
+### 5-Line Interview Summary
+- Added `GET /api/gods/live` behind `require_admin` returning team names, latest coordinates, accuracy, seconds since last seen, cleared/total progress, and test mode flags.
+- Preserved privacy and security by strictly omitting device hashes, secret join codes, member rosters, and IP addresses, while avoiding historical GPS trails.
+- Added idempotent SQLite migrations for `last_fix_accuracy` and `last_fix_test` columns on `teams`, clearing them on game reset and wipe.
+- Built an organizer "Live Map" tab with Leaflet tiles, campus boundary constraints, checkpoint zone orientation circles, team markers, and a responsive sidebar.
+- Implemented state indicators showing active teams, stale teams (>60s inactivity) greyed out, test mode tags, and background-safe 5-second polling via `document.visibilityState`.
+
+### Interview Questions & Answers
+**Q1: Why did you reuse and extend the `teams` table rather than creating a separate `team_positions` or `gps_breadcrumbs` table?**  
+**A1:** Campus Quest's privacy model and architecture explicitly prohibit storing player movement trails or historical surveillance breadcrumbs. The live map only requires the single most recent known position of each team, so storing `last_fix_lat`, `last_fix_lng`, `last_fix_accuracy`, and `last_fix_test` directly on the `teams` row keeps the schema simple, requires zero complex joins or historical table maintenance, and ensures all position data is instantly nullified upon game reset or wiped upon event conclusion.
+
+**Q2: Why do you check `document.visibilityState` during polling, and how does the live map avoid Leaflet rendering artifacts when switching tabs?**  
+**A2:** Mobile browsers throttle or suspend background JavaScript timers to conserve battery and CPU. Polling only when `document.visibilityState === "visible"` and the Live Map tab is active prevents unnecessary network traffic and memory churn. Furthermore, because Leaflet cannot calculate DOM dimensions for hidden elements (`display: none`), calling `map.invalidateSize()` after tab switching forces Leaflet to recalculate the container viewport and reload map tiles cleanly without grey boxes.
+

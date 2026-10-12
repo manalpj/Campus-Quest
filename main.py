@@ -966,6 +966,19 @@ def list_gods_teams(
     return result
 
 
+@app.get("/api/gods/live")
+def get_gods_live_teams(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Retrieve latest known positions and game status for all teams.
+
+    Protected by require_admin. Strictly omits team codes and device hashes.
+    """
+    now = time.time()
+    return db.get_teams_live_positions(conn, now)
+
+
 @app.post("/api/gods/teams/{team_id}/release")
 def release_gods_team_device(
     team_id: int,
@@ -1649,6 +1662,8 @@ def ping_location(
             is_last=is_last,
             lat=body.lat,
             lng=body.lng,
+            accuracy=body.accuracy,
+            is_test=bool(body.test),
             awarded_powerup=awarded,
         )
         invalidate_leaderboard_cache()
@@ -1690,6 +1705,8 @@ def ping_location(
             lng=body.lng,
             ts=now,
             streak=new_streak,
+            accuracy=body.accuracy,
+            is_test=bool(body.test),
         )
         resp = {"status": "searching"}
         if radar_active:

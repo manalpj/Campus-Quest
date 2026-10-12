@@ -2845,8 +2845,154 @@ html:has(.board-body) {
   justify-content: center;
 }
 
+/* ==========================================================================
+   Admin Live Team Map Styles (/gods)
+   ========================================================================== */
 
+#gods-live-map {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
 
+.gods-live-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-16);
+  padding: var(--space-8) var(--space-16);
+  margin-bottom: var(--space-16);
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
 
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+}
 
+.legend-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
 
+.swatch-active {
+  background-color: var(--primary);
+  border: 2px solid #ffffff;
+  outline: 1px solid var(--primary);
+}
+
+.swatch-stale {
+  background-color: var(--text-secondary);
+  opacity: 0.55;
+}
+
+.swatch-test {
+  background-color: var(--attention);
+  border: 2px solid #ffffff;
+  outline: 1px dashed var(--attention);
+}
+
+.swatch-cp {
+  background-color: var(--success-bg);
+  border: 1.5px dashed var(--success);
+}
+
+/* Custom Live Team Map Marker (Leaflet divIcon) */
+.live-team-marker {
+  background: transparent;
+  border: none;
+}
+
+.team-marker-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: var(--surface);
+  border: 2px solid var(--primary);
+  color: var(--text);
+  font-family: var(--font-stack);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 14px;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  user-select: none;
+}
+
+.team-marker-bubble .marker-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  flex-shrink: 0;
+}
+
+.team-marker-bubble.stale {
+  opacity: 0.55;
+  border-color: var(--text-secondary);
+  background-color: var(--bg);
+  color: var(--text-secondary);
+}
+
+.team-marker-bubble.stale .marker-dot {
+  background-color: var(--text-secondary);
+}
+
+.team-marker-bubble.test-fix {
+  border-color: var(--attention);
+  border-style: dashed;
+}
+
+.team-marker-bubble.test-fix .marker-dot {
+  background-color: var(--attention);
+}
+
+.team-marker-bubble .marker-test-tag {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--attention);
+  text-transform: uppercase;
+}
+
+.live-team-sidebar-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-8) var(--space-12);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background-color: var(--surface);
+}
+
+.live-team-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-8);
+}
+
+.live-team-sidebar-name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.live-team-sidebar-meta {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}

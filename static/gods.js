@@ -21,11 +21,21 @@ document.addEventListener("DOMContentLoaded", () => {
   const tabBtnGame = document.getElementById("tab-btn-game");
   const tabBtnCheckpoints = document.getElementById("tab-btn-checkpoints");
   const tabBtnTeams = document.getElementById("tab-btn-teams");
+  const tabBtnLive = document.getElementById("tab-btn-live");
   const tabBtnEvents = document.getElementById("tab-btn-events");
   const tabPanelGame = document.getElementById("tab-panel-game");
   const tabPanelCheckpoints = document.getElementById("tab-panel-checkpoints");
   const tabPanelTeams = document.getElementById("tab-panel-teams");
+  const tabPanelLive = document.getElementById("tab-panel-live");
   const tabPanelEvents = document.getElementById("tab-panel-events");
+
+  // Elements: Live Map Tab
+  const liveCounterPill = document.getElementById("live-counter-pill");
+  const liveRefreshPill = document.getElementById("live-refresh-pill");
+  const btnRefreshLive = document.getElementById("btn-refresh-live");
+  const godsLiveAlert = document.getElementById("gods-live-alert");
+  const liveSidebarCount = document.getElementById("live-sidebar-count");
+  const liveTeamsList = document.getElementById("live-teams-list");
 
   // Elements: Events Tab
   const eventsAlert = document.getElementById("gods-events-alert");
@@ -208,6 +218,26 @@ document.addEventListener("DOMContentLoaded", () => {
     eventsAlert.hidden = true;
   }
 
+  // Live Map State & Helpers
+  let liveMapInstance = null;
+  const liveMapMarkers = new Map();
+  let liveCpCircles = [];
+  let liveRefreshInterval = null;
+  let liveTeamsData = [];
+
+  function showLiveAlert(message, isError = true) {
+    if (!godsLiveAlert) return;
+    godsLiveAlert.textContent = message;
+    godsLiveAlert.hidden = false;
+    godsLiveAlert.className = isError ? "gods-alert gods-alert-error" : "gods-alert gods-alert-success";
+  }
+
+  function hideLiveAlert() {
+    if (!godsLiveAlert) return;
+    godsLiveAlert.textContent = "";
+    godsLiveAlert.hidden = true;
+  }
+
   let activeAdminTab = "game";
   let eventsRefreshInterval = null;
   let eventsOffset = 0;
@@ -243,10 +273,12 @@ document.addEventListener("DOMContentLoaded", () => {
     hideGlobalAlert();
     hideTeamsAlert();
     hideEventsAlert();
+    hideLiveAlert();
 
     const isGame = tabName === "game";
     const isCheckpoints = tabName === "checkpoints";
     const isTeams = tabName === "teams";
+    const isLive = tabName === "live";
     const isEvents = tabName === "events";
 
     if (tabBtnGame) {
@@ -261,6 +293,10 @@ document.addEventListener("DOMContentLoaded", () => {
       tabBtnTeams.classList.toggle("active", isTeams);
       tabBtnTeams.setAttribute("aria-selected", isTeams ? "true" : "false");
     }
+    if (tabBtnLive) {
+      tabBtnLive.classList.toggle("active", isLive);
+      tabBtnLive.setAttribute("aria-selected", isLive ? "true" : "false");
+    }
     if (tabBtnEvents) {
       tabBtnEvents.classList.toggle("active", isEvents);
       tabBtnEvents.setAttribute("aria-selected", isEvents ? "true" : "false");
@@ -274,6 +310,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (tabPanelTeams) {
       tabPanelTeams.hidden = !isTeams;
+    }
+    if (tabPanelLive) {
+      tabPanelLive.hidden = !isLive;
     }
     if (tabPanelEvents) {
       tabPanelEvents.hidden = !isEvents;
@@ -307,6 +346,29 @@ document.addEventListener("DOMContentLoaded", () => {
       if (teamsRefreshInterval) {
         clearInterval(teamsRefreshInterval);
         teamsRefreshInterval = null;
+      }
+    }
+
+    if (isLive) {
+      if (!liveMapInstance && campusConfig) {
+        initLiveMap(campusConfig);
+      }
+      loadLiveCheckpoints();
+      loadLiveTeams();
+      if (liveMapInstance) {
+        setTimeout(() => liveMapInstance.invalidateSize(), 120);
+      }
+      if (!liveRefreshInterval) {
+        liveRefreshInterval = setInterval(() => {
+          if (document.visibilityState === "visible" && activeAdminTab === "live") {
+            loadLiveTeams();
+          }
+        }, 5000);
+      }
+    } else {
+      if (liveRefreshInterval) {
+        clearInterval(liveRefreshInterval);
+        liveRefreshInterval = null;
       }
     }
 
@@ -451,6 +513,215 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (btnEventsLoadMore) {
       btnEventsLoadMore.hidden = events.length < EVENTS_PAGE_LIMIT;
+    }
+  }
+
+  // --- Live Map Management ---
+
+  function initLiveMap(cfg) {
+    if (liveMapInstance || !cfg) return;
+    const mapElement = document.getElementById("gods-live-map");
+    if (!mapElement || typeof L === "undefined") return;
+
+    const sw = L.latLng(cfg.bounds.sw.lat, cfg.bounds.sw.lng);
+    const ne = L.latLng(cfg.bounds.ne.lat, cfg.bounds.ne.lng);
+    const campusBounds = L.latLngBounds(sw, ne);
+
+    liveMapInstance = L.map("gods-live-map", {
+      center: [cfg.center.lat, cfg.center.lng],
+      zoom: cfg.zoom.start,
+      minZoom: cfg.zoom.min,
+      maxZoom: cfg.zoom.max,
+      maxBounds: campusBounds,
+      maxBoundsViscosity: 1.0,
+      zoomControl: false,
+    });
+
+    L.control.zoom({ position: "bottomright" }).addTo(liveMapInstance);
+
+    L.tileLayer(cfg.tile_url, {
+      attribution: cfg.tile_attribution,
+      minZoom: cfg.zoom.min,
+      maxZoom: cfg.zoom.max,
+    }).addTo(liveMapInstance);
+  }
+
+  async function loadLiveCheckpoints() {
+    if (!liveMapInstance) return;
+    try {
+      const res = await fetch("/api/gods/checkpoints", {
+        headers: { "Accept": "application/json" },
+      });
+      if (!res.ok) return;
+      const cps = await res.json();
+
+      liveCpCircles.forEach((circle) => {
+        if (liveMapInstance) liveMapInstance.removeLayer(circle);
+      });
+      liveCpCircles = [];
+
+      cps.forEach((cp) => {
+        const circle = L.circle([cp.lat, cp.lng], {
+          radius: cp.radius,
+          color: "#188038",
+          fillColor: "#188038",
+          fillOpacity: 0.1,
+          weight: 1.5,
+          dashArray: "4, 4",
+        }).addTo(liveMapInstance);
+
+        circle.bindTooltip(`#${cp.position} ${escapeHtml(cp.name)}`, {
+          direction: "top",
+          opacity: 0.9,
+        });
+
+        liveCpCircles.push(circle);
+      });
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  async function loadLiveTeams() {
+    try {
+      const res = await fetch("/api/gods/live", {
+        headers: { "Accept": "application/json" },
+      });
+      if (res.status === 401) {
+        showLoginForm();
+        return;
+      }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Failed to load live team positions.");
+      }
+      const teams = await res.json();
+      liveTeamsData = teams;
+      renderLiveTeams(teams);
+    } catch (err) {
+      showLiveAlert("Live map error: " + err.message, true);
+    }
+  }
+
+  function renderLiveTeams(teams) {
+    if (!teams) return;
+    hideLiveAlert();
+
+    const activeTeamIds = new Set();
+    let reportingCount = 0;
+
+    teams.forEach((t) => {
+      activeTeamIds.add(t.id);
+      const hasFix = t.lat != null && t.lng != null;
+      if (hasFix) {
+        reportingCount++;
+      }
+
+      if (liveMapInstance && hasFix) {
+        const isStale = t.seconds_since_last_seen === null || t.seconds_since_last_seen > 60;
+        const isTest = Boolean(t.is_test);
+
+        const iconHtml = `
+          <div class="team-marker-bubble ${isStale ? "stale" : ""} ${isTest ? "test-fix" : ""}">
+            <span class="marker-dot"></span>
+            <span>${escapeHtml(t.name)}</span>
+            ${isTest ? '<span class="marker-test-tag">TEST</span>' : ""}
+          </div>
+        `;
+
+        const icon = L.divIcon({
+          className: "live-team-marker",
+          html: iconHtml,
+          iconSize: [120, 28],
+          iconAnchor: [60, 14],
+        });
+
+        const popupContent = `
+          <strong>${escapeHtml(t.name)}</strong><br>
+          Status: ${isStale ? '<span style="color:var(--text-secondary)">Inactive / Stale (&gt;60s)</span>' : '<span style="color:var(--success)">Active</span>'}<br>
+          Cleared: ${t.cleared} of ${t.total}<br>
+          Accuracy: ${t.accuracy != null ? Math.round(t.accuracy) + " m" : "—"}<br>
+          Last seen: ${t.seconds_since_last_seen != null ? t.seconds_since_last_seen + "s ago" : "Never"}<br>
+          ${isTest ? '<span style="color:var(--attention);font-weight:600;">(Fix from Test Mode)</span>' : ""}
+        `;
+
+        let marker = liveMapMarkers.get(t.id);
+        if (marker) {
+          marker.setLatLng([t.lat, t.lng]);
+          marker.setIcon(icon);
+          marker.setPopupContent(popupContent);
+        } else {
+          marker = L.marker([t.lat, t.lng], { icon, title: t.name }).addTo(liveMapInstance);
+          marker.bindPopup(popupContent);
+          liveMapMarkers.set(t.id, marker);
+        }
+      } else if (liveMapInstance && !hasFix) {
+        const existingMarker = liveMapMarkers.get(t.id);
+        if (existingMarker) {
+          liveMapInstance.removeLayer(existingMarker);
+          liveMapMarkers.delete(t.id);
+        }
+      }
+    });
+
+    // Remove markers for deleted teams
+    if (liveMapInstance) {
+      for (const [id, marker] of liveMapMarkers.entries()) {
+        if (!activeTeamIds.has(id)) {
+          liveMapInstance.removeLayer(marker);
+          liveMapMarkers.delete(id);
+        }
+      }
+    }
+
+    if (liveCounterPill) {
+      liveCounterPill.textContent = `${reportingCount} of ${teams.length} teams reporting GPS`;
+    }
+    if (liveSidebarCount) {
+      liveSidebarCount.textContent = `${teams.length} registered`;
+    }
+
+    if (liveTeamsList) {
+      liveTeamsList.innerHTML = "";
+      if (teams.length === 0) {
+        liveTeamsList.innerHTML = '<p class="table-empty-cell">No teams registered yet.</p>';
+        return;
+      }
+
+      teams.forEach((t) => {
+        const hasFix = t.lat != null && t.lng != null;
+        const isStale = t.seconds_since_last_seen === null || t.seconds_since_last_seen > 60;
+        const isTest = Boolean(t.is_test);
+
+        const item = document.createElement("article");
+        item.className = "live-team-sidebar-item";
+        item.innerHTML = `
+          <div class="live-team-sidebar-header">
+            <span class="live-team-sidebar-name">${escapeHtml(t.name)}</span>
+            <span class="badge-status ${hasFix ? (isStale ? "badge-attention" : "badge-running") : "badge-setup"}">
+              ${hasFix ? (isStale ? "Stale" : "Live") : "No fix"}
+            </span>
+          </div>
+          <div class="live-team-sidebar-meta">
+            <span>Cleared: ${t.cleared}/${t.total}</span>
+            <span>Seen: ${t.seconds_since_last_seen != null ? t.seconds_since_last_seen + "s ago" : "Never"}</span>
+            ${hasFix && t.accuracy != null ? `<span>&plusmn;${Math.round(t.accuracy)}m</span>` : ""}
+            ${isTest ? '<span style="color:var(--attention);font-weight:700;">TEST</span>' : ""}
+          </div>
+        `;
+
+        if (hasFix && liveMapInstance) {
+          item.style.cursor = "pointer";
+          item.title = "Click to focus on map";
+          item.addEventListener("click", () => {
+            liveMapInstance.panTo([t.lat, t.lng]);
+            const marker = liveMapMarkers.get(t.id);
+            if (marker) marker.openPopup();
+          });
+        }
+
+        liveTeamsList.appendChild(item);
+      });
     }
   }
 
@@ -1869,6 +2140,15 @@ document.addEventListener("DOMContentLoaded", () => {
   if (tabBtnTeams) {
     tabBtnTeams.addEventListener("click", () => switchTab("teams"));
   }
+  if (tabBtnLive) {
+    tabBtnLive.addEventListener("click", () => switchTab("live"));
+  }
+  if (btnRefreshLive) {
+    btnRefreshLive.addEventListener("click", () => {
+      loadLiveCheckpoints();
+      loadLiveTeams();
+    });
+  }
   if (tabBtnEvents) {
     tabBtnEvents.addEventListener("click", () => switchTab("events"));
   }
@@ -1900,8 +2180,13 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && activeAdminTab === "events" && eventsAutorefreshToggle && eventsAutorefreshToggle.checked) {
-      loadEvents(false);
+    if (document.visibilityState === "visible") {
+      if (activeAdminTab === "events" && eventsAutorefreshToggle && eventsAutorefreshToggle.checked) {
+        loadEvents(false);
+      }
+      if (activeAdminTab === "live") {
+        loadLiveTeams();
+      }
     }
   });
   if (btnRefreshTeams) {

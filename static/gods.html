@@ -70,6 +70,10 @@
           aria-controls="tab-panel-teams">
           Teams
         </button>
+        <button type="button" role="tab" id="tab-btn-live" class="gods-tab-btn" aria-selected="false"
+          aria-controls="tab-panel-live">
+          Live Map
+        </button>
         <button type="button" role="tab" id="tab-btn-events" class="gods-tab-btn" aria-selected="false"
           aria-controls="tab-panel-events">
           Events
@@ -312,6 +316,61 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- Live Map Tab Panel -->
+      <section id="tab-panel-live" role="tabpanel" aria-labelledby="tab-btn-live" class="gods-tab-panel" hidden>
+        <div class="gods-panel-top">
+          <div class="gods-counter-badge">
+            <span id="live-counter-pill" class="counter-pill">0 teams on map</span>
+            <span id="live-refresh-pill" class="counter-hint">Auto-refreshes every 5s</span>
+          </div>
+          <button type="button" id="btn-refresh-live" class="gods-btn gods-btn-secondary gods-btn-sm" style="min-width: 140px;">
+            &#x21bb; Refresh Now
+          </button>
+        </div>
+
+        <div id="gods-live-alert" class="gods-alert" role="alert" aria-live="polite" hidden></div>
+
+        <!-- Legend -->
+        <div class="gods-live-legend" role="region" aria-label="Live Map Legend">
+          <div class="legend-item">
+            <span class="legend-swatch swatch-active"></span>
+            <span>Active (&le;60s)</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-swatch swatch-stale"></span>
+            <span>Inactive (&gt;60s)</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-swatch swatch-test"></span>
+            <span>Test Mode Fix</span>
+          </div>
+          <div class="legend-item">
+            <span class="legend-swatch swatch-cp"></span>
+            <span>Checkpoint Zone</span>
+          </div>
+        </div>
+
+        <div class="gods-workspace">
+          <!-- Leaflet Live Map Container -->
+          <div class="gods-map-wrapper">
+            <div id="gods-live-map" role="region" aria-label="Campus Live Team Map"></div>
+          </div>
+
+          <!-- Live Teams Status Sidebar -->
+          <div class="gods-sidebar">
+            <div class="gods-list-card">
+              <div class="gods-list-header">
+                <h2>Team Locations</h2>
+                <span id="live-sidebar-count" class="counter-hint">0 total</span>
+              </div>
+              <div id="live-teams-list" class="gods-items-list" style="max-height: 480px;">
+                <p class="table-empty-cell">Loading live team positions...</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

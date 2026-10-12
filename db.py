@@ -52,6 +52,8 @@ TABLE_STATEMENTS = [
         last_fix_lat REAL,
         last_fix_lng REAL,
         last_fix_ts REAL,
+        last_fix_accuracy REAL,
+        last_fix_test INTEGER NOT NULL DEFAULT 0,
         finished_at REAL
     );
     """,
@@ -152,6 +154,12 @@ def init_db(db_path: Optional[str] = None) -> None:
                     "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
                     (key, val),
                 )
+            # Idempotent column migrations for existing databases
+            cols = {row["name"] for row in conn.execute("PRAGMA table_info(teams)").fetchall()}
+            if "last_fix_accuracy" not in cols:
+                conn.execute("ALTER TABLE teams ADD COLUMN last_fix_accuracy REAL;")
+            if "last_fix_test" not in cols:
+                conn.execute("ALTER TABLE teams ADD COLUMN last_fix_test INTEGER NOT NULL DEFAULT 0;")
     finally:
         conn.close()
 
@@ -573,8 +581,10 @@ def update_team_fix_and_streak(
     lng: float,
     ts: float,
     streak: int,
+    accuracy: Optional[float] = None,
+    is_test: bool = False,
 ) -> None:
-    """Update last fix location, timestamp, last_seen, and inside streak for a team.
+    """Update last fix location, accuracy, test flag, timestamp, last_seen, and inside streak for a team.
 
     Runs within write_tx (BEGIN IMMEDIATE).
     """
@@ -582,10 +592,11 @@ def update_team_fix_and_streak(
         conn.execute(
             """
             UPDATE teams
-            SET last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?, last_seen = ?, inside_streak = ?
+            SET last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?,
+                last_fix_accuracy = ?, last_fix_test = ?, last_seen = ?, inside_streak = ?
             WHERE id = ?
             """,
-            (lat, lng, ts, ts, streak, team_id),
+            (lat, lng, ts, accuracy, 1 if is_test else 0, ts, streak, team_id),
         )
 
 
@@ -623,6 +634,8 @@ def unlock_checkpoint(
     is_last: bool,
     lat: Optional[float] = None,
     lng: Optional[float] = None,
+    accuracy: Optional[float] = None,
+    is_test: bool = False,
     awarded_powerup: Optional[str] = None,
 ) -> bool:
     """Record an unlocked checkpoint in progress, reset streak, award powerup, and update team state.
@@ -650,26 +663,29 @@ def unlock_checkpoint(
 
         radar_inc = 1 if awarded_powerup == "radar" else 0
         boost_inc = 1 if awarded_powerup == "boost" else 0
+        test_val = 1 if is_test else 0
 
         if is_last:
             conn.execute(
                 """
                 UPDATE teams
                 SET inside_streak = 0, last_seen = ?, last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?,
+                    last_fix_accuracy = ?, last_fix_test = ?,
                     radar_left = radar_left + ?, boost_left = boost_left + ?, finished_at = ?
                 WHERE id = ?
                 """,
-                (unlocked_at, lat, lng, unlocked_at, radar_inc, boost_inc, unlocked_at, team_id),
+                (unlocked_at, lat, lng, unlocked_at, accuracy, test_val, radar_inc, boost_inc, unlocked_at, team_id),
             )
         else:
             conn.execute(
                 """
                 UPDATE teams
                 SET inside_streak = 0, last_seen = ?, last_fix_lat = ?, last_fix_lng = ?, last_fix_ts = ?,
+                    last_fix_accuracy = ?, last_fix_test = ?,
                     radar_left = radar_left + ?, boost_left = boost_left + ?
                 WHERE id = ?
                 """,
-                (unlocked_at, lat, lng, unlocked_at, radar_inc, boost_inc, team_id),
+                (unlocked_at, lat, lng, unlocked_at, accuracy, test_val, radar_inc, boost_inc, team_id),
             )
 
         log_event(
@@ -1179,6 +1195,8 @@ def reset_all_teams_progress(conn: sqlite3.Connection) -> int:
                 last_fix_lat = NULL,
                 last_fix_lng = NULL,
                 last_fix_ts = NULL,
+                last_fix_accuracy = NULL,
+                last_fix_test = 0,
                 finished_at = NULL
             """
         )
@@ -1218,6 +1236,8 @@ def reset_team_progress(conn: sqlite3.Connection, team_id: int) -> bool:
                 last_fix_lat = NULL,
                 last_fix_lng = NULL,
                 last_fix_ts = NULL,
+                last_fix_accuracy = NULL,
+                last_fix_test = 0,
                 finished_at = NULL
             WHERE id = ?
             """,
@@ -1246,7 +1266,45 @@ def wipe_event_data(conn: sqlite3.Connection) -> None:
         log_event(conn, None, game.EVENT_EVENT_WIPED, "event data wiped")
 
 
+def get_teams_live_positions(conn: sqlite3.Connection, now: float) -> list[dict]:
+    """Retrieve live location and progress metrics for all teams.
 
+    Never returns device hashes, team secret codes, or member rosters.
+    """
+    total_cps = get_checkpoint_count(conn)
+    rows = conn.execute(
+        """
+        SELECT
+            t.id,
+            t.name,
+            t.last_seen,
+            t.last_fix_lat,
+            t.last_fix_lng,
+            t.last_fix_accuracy,
+            t.last_fix_test,
+            COUNT(p.checkpoint_id) AS cleared
+        FROM teams t
+        LEFT JOIN progress p ON t.id = p.team_id
+        GROUP BY t.id
+        ORDER BY t.name COLLATE NOCASE ASC
+        """
+    ).fetchall()
 
+    results = []
+    for r in rows:
+        seconds_since = None
+        if r["last_seen"] is not None:
+            seconds_since = max(0.0, round(now - r["last_seen"], 1))
 
-
+        results.append({
+            "id": r["id"],
+            "name": r["name"],
+            "lat": r["last_fix_lat"],
+            "lng": r["last_fix_lng"],
+            "accuracy": r["last_fix_accuracy"],
+            "seconds_since_last_seen": seconds_since,
+            "cleared": r["cleared"],
+            "total": total_cps,
+            "is_test": bool(r["last_fix_test"]),
+        })
+    return results
