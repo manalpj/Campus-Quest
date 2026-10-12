@@ -21,9 +21,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const tabBtnGame = document.getElementById("tab-btn-game");
   const tabBtnCheckpoints = document.getElementById("tab-btn-checkpoints");
   const tabBtnTeams = document.getElementById("tab-btn-teams");
+  const tabBtnEvents = document.getElementById("tab-btn-events");
   const tabPanelGame = document.getElementById("tab-panel-game");
   const tabPanelCheckpoints = document.getElementById("tab-panel-checkpoints");
   const tabPanelTeams = document.getElementById("tab-panel-teams");
+  const tabPanelEvents = document.getElementById("tab-panel-events");
+
+  // Elements: Events Tab
+  const eventsAlert = document.getElementById("gods-events-alert");
+  const eventsFilterTeam = document.getElementById("events-filter-team");
+  const eventsFilterType = document.getElementById("events-filter-type");
+  const eventsAutorefreshToggle = document.getElementById("events-autorefresh-toggle");
+  const eventsTableBody = document.getElementById("events-table-body");
+  const btnEventsLoadMore = document.getElementById("btn-events-load-more");
 
   // Elements: Teams Tab
   const teamsAlert = document.getElementById("gods-teams-alert");
@@ -185,14 +195,59 @@ document.addEventListener("DOMContentLoaded", () => {
     gameAlert.hidden = true;
   }
 
+  function showEventsAlert(message, isError = true) {
+    if (!eventsAlert) return;
+    eventsAlert.textContent = message;
+    eventsAlert.hidden = false;
+    eventsAlert.className = isError ? "gods-alert gods-alert-error" : "gods-alert gods-alert-success";
+  }
+
+  function hideEventsAlert() {
+    if (!eventsAlert) return;
+    eventsAlert.textContent = "";
+    eventsAlert.hidden = true;
+  }
+
+  let activeAdminTab = "game";
+  let eventsRefreshInterval = null;
+  let eventsOffset = 0;
+  const EVENTS_PAGE_LIMIT = 100;
+  const KNOWN_EVENT_TYPES = [
+    "team_registered",
+    "device_bound",
+    "checkpoint_unlocked",
+    "hint_used",
+    "radar_used",
+    "game_started",
+    "game_ended",
+    "game_reset",
+    "teams_progress_reset",
+    "team_reset",
+    "admin_login_success",
+    "admin_login_failure",
+    "speed_rejected",
+    "device_released",
+    "time_adjusted",
+    "team_deleted",
+    "checkpoint_skipped",
+    "checkpoint_force_cleared",
+    "test_ping_refused",
+    "test_mode_toggled",
+    "event_wiped",
+    "export_downloaded",
+  ];
+
   function switchTab(tabName) {
+    activeAdminTab = tabName;
     hideGameAlert();
     hideGlobalAlert();
     hideTeamsAlert();
+    hideEventsAlert();
 
     const isGame = tabName === "game";
     const isCheckpoints = tabName === "checkpoints";
     const isTeams = tabName === "teams";
+    const isEvents = tabName === "events";
 
     if (tabBtnGame) {
       tabBtnGame.classList.toggle("active", isGame);
@@ -206,6 +261,10 @@ document.addEventListener("DOMContentLoaded", () => {
       tabBtnTeams.classList.toggle("active", isTeams);
       tabBtnTeams.setAttribute("aria-selected", isTeams ? "true" : "false");
     }
+    if (tabBtnEvents) {
+      tabBtnEvents.classList.toggle("active", isEvents);
+      tabBtnEvents.setAttribute("aria-selected", isEvents ? "true" : "false");
+    }
 
     if (tabPanelGame) {
       tabPanelGame.hidden = !isGame;
@@ -215,6 +274,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (tabPanelTeams) {
       tabPanelTeams.hidden = !isTeams;
+    }
+    if (tabPanelEvents) {
+      tabPanelEvents.hidden = !isEvents;
     }
 
     if (isGame) {
@@ -246,6 +308,149 @@ document.addEventListener("DOMContentLoaded", () => {
         clearInterval(teamsRefreshInterval);
         teamsRefreshInterval = null;
       }
+    }
+
+    if (isEvents) {
+      initEventsTab();
+      if (eventsAutorefreshToggle && eventsAutorefreshToggle.checked && !eventsRefreshInterval) {
+        eventsRefreshInterval = setInterval(() => {
+          if (document.visibilityState === "visible") {
+            loadEvents(false);
+          }
+        }, 5000);
+      }
+    } else {
+      if (eventsRefreshInterval) {
+        clearInterval(eventsRefreshInterval);
+        eventsRefreshInterval = null;
+      }
+    }
+  }
+
+  function initEventsTab() {
+    populateEventTypesFilter();
+    populateEventTeamsFilter();
+    loadEvents(false);
+  }
+
+  function populateEventTypesFilter() {
+    if (!eventsFilterType || eventsFilterType.options.length > 1) return;
+    KNOWN_EVENT_TYPES.forEach((type) => {
+      const opt = document.createElement("option");
+      opt.value = type;
+      opt.textContent = type;
+      eventsFilterType.appendChild(opt);
+    });
+  }
+
+  async function populateEventTeamsFilter() {
+    if (!eventsFilterTeam) return;
+    try {
+      const res = await fetch("/api/gods/teams", { headers: { "Accept": "application/json" } });
+      if (!res.ok) return;
+      const teams = await res.json();
+      const currentVal = eventsFilterTeam.value;
+      eventsFilterTeam.innerHTML = '<option value="">All Teams</option>';
+      teams.forEach((t) => {
+        const opt = document.createElement("option");
+        opt.value = String(t.id);
+        opt.textContent = t.name;
+        eventsFilterTeam.appendChild(opt);
+      });
+      if (currentVal) {
+        eventsFilterTeam.value = currentVal;
+      }
+    } catch {
+      // Non-fatal if teams lookup fails temporarily
+    }
+  }
+
+  async function loadEvents(isAppend = false) {
+    if (!isAppend) {
+      eventsOffset = 0;
+    }
+    hideEventsAlert();
+
+    const teamVal = eventsFilterTeam ? eventsFilterTeam.value.trim() : "";
+    const typeVal = eventsFilterType ? eventsFilterType.value.trim() : "";
+
+    let url = `/api/gods/events?limit=${EVENTS_PAGE_LIMIT}&offset=${eventsOffset}`;
+    if (teamVal) {
+      url += `&team_id=${encodeURIComponent(teamVal)}`;
+    }
+    if (typeVal) {
+      url += `&type=${encodeURIComponent(typeVal)}`;
+    }
+
+    try {
+      const res = await fetch(url, { headers: { "Accept": "application/json" } });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.detail || "Failed to load audit events");
+      }
+      const events = await res.json();
+      renderEvents(events, isAppend);
+    } catch (err) {
+      showEventsAlert("Events fetch error: " + err.message, true);
+    }
+  }
+
+  function renderEvents(events, isAppend = false) {
+    if (!eventsTableBody) return;
+    if (!isAppend) {
+      eventsTableBody.innerHTML = "";
+    }
+
+    if (!isAppend && events.length === 0) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+      td.colSpan = 4;
+      td.className = "table-empty-cell";
+      td.textContent = "No audit events match current filters.";
+      tr.appendChild(td);
+      eventsTableBody.appendChild(tr);
+      if (btnEventsLoadMore) btnEventsLoadMore.hidden = true;
+      return;
+    }
+
+    events.forEach((ev) => {
+      const tr = document.createElement("tr");
+
+      // 1. Time formatted in browser's local time
+      const tdTime = document.createElement("td");
+      tdTime.className = "team-last-seen-cell";
+      const localDate = new Date(ev.ts * 1000);
+      tdTime.textContent = localDate.toLocaleString();
+
+      // 2. Team Name
+      const tdTeam = document.createElement("td");
+      tdTeam.className = "team-name-cell";
+      tdTeam.textContent = ev.team_name || "—";
+
+      // 3. Type
+      const tdType = document.createElement("td");
+      const badge = document.createElement("span");
+      badge.className = "team-code-badge";
+      badge.textContent = ev.type;
+      tdType.appendChild(badge);
+
+      // 4. Detail
+      const tdDetail = document.createElement("td");
+      tdDetail.style.fontFamily = "monospace";
+      tdDetail.style.fontSize = "0.8125rem";
+      tdDetail.style.wordBreak = "break-all";
+      tdDetail.textContent = ev.detail || "—";
+
+      tr.appendChild(tdTime);
+      tr.appendChild(tdTeam);
+      tr.appendChild(tdType);
+      tr.appendChild(tdDetail);
+
+      eventsTableBody.appendChild(tr);
+    });
+
+    if (btnEventsLoadMore) {
+      btnEventsLoadMore.hidden = events.length < EVENTS_PAGE_LIMIT;
     }
   }
 
@@ -1664,6 +1869,41 @@ document.addEventListener("DOMContentLoaded", () => {
   if (tabBtnTeams) {
     tabBtnTeams.addEventListener("click", () => switchTab("teams"));
   }
+  if (tabBtnEvents) {
+    tabBtnEvents.addEventListener("click", () => switchTab("events"));
+  }
+  if (eventsFilterTeam) {
+    eventsFilterTeam.addEventListener("change", () => loadEvents(false));
+  }
+  if (eventsFilterType) {
+    eventsFilterType.addEventListener("change", () => loadEvents(false));
+  }
+  if (btnEventsLoadMore) {
+    btnEventsLoadMore.addEventListener("click", () => {
+      eventsOffset += EVENTS_PAGE_LIMIT;
+      loadEvents(true);
+    });
+  }
+  if (eventsAutorefreshToggle) {
+    eventsAutorefreshToggle.addEventListener("change", () => {
+      if (eventsRefreshInterval) {
+        clearInterval(eventsRefreshInterval);
+        eventsRefreshInterval = null;
+      }
+      if (eventsAutorefreshToggle.checked && activeAdminTab === "events") {
+        eventsRefreshInterval = setInterval(() => {
+          if (document.visibilityState === "visible") {
+            loadEvents(false);
+          }
+        }, 5000);
+      }
+    });
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && activeAdminTab === "events" && eventsAutorefreshToggle && eventsAutorefreshToggle.checked) {
+      loadEvents(false);
+    }
+  });
   if (btnRefreshTeams) {
     btnRefreshTeams.addEventListener("click", () => loadAdminTeams());
   }

@@ -303,7 +303,9 @@ html:has(.board-body) {
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select,
+.gods-select {
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -317,7 +319,9 @@ html:has(.board-body) {
   line-height: 1.4;
 }
 
-.form-group input {
+.form-group input,
+.form-group select,
+.gods-select {
   min-height: 44px;
 }
 

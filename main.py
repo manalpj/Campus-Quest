@@ -5,10 +5,13 @@ static file delivery for the player and administrative interfaces.
 """
 
 from contextlib import asynccontextmanager
+import csv
+import io
 import json
 import os
 from typing import Optional
 from pathlib import Path
+import re
 import sqlite3
 import time
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
@@ -488,25 +491,179 @@ def gods_me(admin_user: str = Depends(auth.require_admin)):
 
 @app.get("/api/gods/events")
 def get_gods_events(
-    limit: int = Query(default=100, ge=1, le=500, description="Max number of recent events to return"),
+    team_id: Optional[int] = Query(default=None, ge=1, description="Optional team ID filter"),
+    type: Optional[str] = Query(default=None, max_length=50, pattern=r"^[a-zA-Z0-9_]+$", description="Optional event type filter"),
+    limit: int = Query(default=100, ge=1, le=200, description="Max number of events to return"),
+    offset: int = Query(default=0, ge=0, description="Pagination offset"),
     admin_user: str = Depends(auth.require_admin),
     conn: sqlite3.Connection = Depends(db.get_db),
 ):
-    """Retrieve recent operational and game events ordered newest first.
+    """Retrieve operational and game audit events ordered newest first.
 
-    Guarded behind administrator authentication. Limit bounded between 1 and 500.
+    Guarded behind administrator authentication. Supports team_id and type filters,
+    limit clamped between 1 and 200, and offset pagination.
     """
-    rows = db.get_latest_events(conn, limit=limit)
+    rows = db.get_events(
+        conn,
+        team_id=team_id,
+        event_type=type,
+        limit=limit,
+        offset=offset,
+    )
     return [
         {
             "id": row["id"],
             "ts": row["ts"],
             "team_id": row["team_id"],
+            "team_name": row["team_name"],
             "type": row["type"],
             "detail": row["detail"],
         }
         for row in rows
     ]
+
+
+@app.get("/api/gods/export/teams.csv")
+def export_teams_csv(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Export team standings and progress breakdown to Excel-compatible CSV.
+
+    Guarded behind administrator authentication.
+    Applies CSV formula injection protection to all text cells.
+    NEVER exports device hashes, tokens, cookies, IPs, or team join codes.
+    Logs an export_downloaded audit event.
+    """
+    db.log_event(conn, None, game.EVENT_EXPORT_DOWNLOADED, "export=teams")
+
+    rows = db.get_teams_export_data(conn)
+    team_data = []
+    for r in rows:
+        adj_s = game.adjusted_time(
+            elapsed_at_last_unlock_s=r["elapsed_at_last_unlock_s"],
+            penalty_s=r["penalty_s"],
+            bonus_s=r["bonus_s"],
+        )
+        team_data.append({
+            "team_id": r["team_id"],
+            "name": r["name"],
+            "members": r["members"],
+            "cleared": r["cleared"],
+            "total": r["total"],
+            "adjusted_time": adj_s,
+            "last_unlock_ts": r["last_unlock_ts"],
+            "penalty_s": r["penalty_s"],
+            "bonus_s": r["bonus_s"],
+            "finished_at": r["finished_at"],
+            "count_unlocked": r["count_unlocked"],
+            "count_skipped": r["count_skipped"],
+            "count_admin": r["count_admin"],
+        })
+
+    ranked = game.rank_teams(team_data)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Final Rank",
+        "Team Name",
+        "Members",
+        "Cleared Count",
+        "Adjusted Time",
+        "Penalty Seconds",
+        "Bonus Seconds",
+        "Finished At",
+        "Unlocked Count",
+        "Skipped Count",
+        "Admin Cleared Count",
+    ])
+
+    for t in ranked:
+        raw_members = json.loads(t["members"]) if t.get("members") else []
+        members_str = "; ".join(raw_members)
+        adj_formatted = f"{t['adjusted_time'] // 60:02d}:{t['adjusted_time'] % 60:02d}"
+
+        fin_at = ""
+        if t.get("finished_at"):
+            fin_at = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(t["finished_at"]))
+
+        writer.writerow([
+            game.sanitize_csv_cell(t["rank"]),
+            game.sanitize_csv_cell(t["name"]),
+            game.sanitize_csv_cell(members_str),
+            game.sanitize_csv_cell(t["cleared"]),
+            game.sanitize_csv_cell(adj_formatted),
+            game.sanitize_csv_cell(t["penalty_s"]),
+            game.sanitize_csv_cell(t["bonus_s"]),
+            game.sanitize_csv_cell(fin_at),
+            game.sanitize_csv_cell(t["count_unlocked"]),
+            game.sanitize_csv_cell(t["count_skipped"]),
+            game.sanitize_csv_cell(t["count_admin"]),
+        ])
+
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="teams.csv"',
+        },
+    )
+
+
+@app.get("/api/gods/export/events.csv")
+def export_events_csv(
+    admin_user: str = Depends(auth.require_admin),
+    conn: sqlite3.Connection = Depends(db.get_db),
+):
+    """Export all audit log events to Excel-compatible CSV.
+
+    Guarded behind administrator authentication.
+    Applies formula injection protection.
+    Strips any client IP addresses or sensitive tokens from detail.
+    NEVER exports device hashes, tokens, cookies, IPs, or join codes.
+    Logs an export_downloaded audit event.
+    """
+    db.log_event(conn, None, game.EVENT_EXPORT_DOWNLOADED, "export=events")
+
+    rows = conn.execute(
+        """
+        SELECT e.ts, e.type, e.detail, t.name AS team_name
+        FROM events e
+        LEFT JOIN teams t ON e.team_id = t.id
+        ORDER BY e.id ASC
+        """
+    ).fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["Time", "Team Name", "Type", "Detail"])
+
+    for r in rows:
+        formatted_time = time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime(r["ts"]))
+        team_name = r["team_name"] or ""
+
+        detail = r["detail"] or ""
+        # Redact any ip=... patterns or raw IPv4 addresses if present
+        detail_clean = re.sub(r"ip=[^\s,]+", "ip=[redacted]", detail)
+        detail_clean = re.sub(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", "[redacted]", detail_clean)
+
+        writer.writerow([
+            game.sanitize_csv_cell(formatted_time),
+            game.sanitize_csv_cell(team_name),
+            game.sanitize_csv_cell(r["type"]),
+            game.sanitize_csv_cell(detail_clean),
+        ])
+
+    csv_bytes = output.getvalue().encode("utf-8-sig")
+    return Response(
+        content=csv_bytes,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="events.csv"',
+        },
+    )
 
 
 # --- Checkpoint Management Endpoints ---

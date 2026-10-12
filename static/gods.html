@@ -70,6 +70,10 @@
           aria-controls="tab-panel-teams">
           Teams
         </button>
+        <button type="button" role="tab" id="tab-btn-events" class="gods-tab-btn" aria-selected="false"
+          aria-controls="tab-panel-events">
+          Events
+        </button>
       </nav>
 
       <!-- Game Control Tab Panel -->
@@ -308,6 +312,65 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- Events Tab Panel -->
+      <section id="tab-panel-events" role="tabpanel" aria-labelledby="tab-btn-events" class="gods-tab-panel" hidden>
+        <div class="gods-panel-top" style="align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8);">
+          <div style="display: flex; align-items: center; gap: var(--space-8); flex-wrap: wrap;">
+            <div class="form-group" style="margin-bottom: 0; min-width: 140px; width: auto;">
+              <label for="events-filter-team" class="sr-only">Filter by Team</label>
+              <select id="events-filter-team" class="gods-select" style="min-width: 140px;">
+                <option value="">All Teams</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0; min-width: 160px; width: auto;">
+              <label for="events-filter-type" class="sr-only">Filter by Event Type</label>
+              <select id="events-filter-type" class="gods-select" style="min-width: 160px;">
+                <option value="">All Event Types</option>
+              </select>
+            </div>
+            <label class="checkbox-label" style="margin-bottom: 0; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.875rem; min-height: 44px; user-select: none;">
+              <input type="checkbox" id="events-autorefresh-toggle" style="width: 18px; height: 18px; min-height: 18px;">
+              <span>Auto-refresh (5s)</span>
+            </label>
+          </div>
+
+          <div style="display: flex; gap: var(--space-8); flex-wrap: wrap;">
+            <a href="/api/gods/export/events.csv" id="btn-export-events-csv" class="gods-btn gods-btn-secondary gods-btn-sm" download="events.csv">
+              Export Events CSV
+            </a>
+            <a href="/api/gods/export/teams.csv" id="btn-export-teams-csv" class="gods-btn gods-btn-secondary gods-btn-sm" download="teams.csv">
+              Export Teams CSV
+            </a>
+          </div>
+        </div>
+
+        <div id="gods-events-alert" class="gods-alert" role="alert" aria-live="polite" hidden></div>
+
+        <div class="gods-table-container" role="region" aria-label="Audit Events Table" tabindex="0">
+          <table class="gods-table" id="events-table">
+            <thead>
+              <tr>
+                <th scope="col" style="width: 190px;">Time</th>
+                <th scope="col" style="width: 150px;">Team</th>
+                <th scope="col" style="width: 190px;">Type</th>
+                <th scope="col">Detail</th>
+              </tr>
+            </thead>
+            <tbody id="events-table-body">
+              <tr>
+                <td colspan="4" class="table-empty-cell">Loading events...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top: var(--space-12); display: flex; justify-content: center;">
+          <button type="button" id="btn-events-load-more" class="gods-btn gods-btn-secondary" style="min-width: 160px;" hidden>
+            Load More
+          </button>
         </div>
       </section>
     </section>

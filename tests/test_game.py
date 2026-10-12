@@ -254,3 +254,22 @@ def test_speed_mps_minimum_time_gap():
     assert speed_zero_gap == pytest.approx(5.0, rel=1e-1)
 
 
+def test_sanitize_csv_cell_neutralizes_formula_injection():
+    """Formula trigger characters (=, +, -, @, \\t, \\r) get a leading single quote."""
+    from game import sanitize_csv_cell
+
+    assert sanitize_csv_cell('=HYPERLINK("http://evil.com")') == '\'=HYPERLINK("http://evil.com")'
+    assert sanitize_csv_cell("+12345") == "'+12345"
+    assert sanitize_csv_cell("-10") == "'-10"
+    assert sanitize_csv_cell("@SUM(A1:A10)") == "'@SUM(A1:A10)"
+    assert sanitize_csv_cell("\talert") == "'\talert"
+    assert sanitize_csv_cell("\ralert") == "'\ralert"
+
+    # Benign values remain unquoted
+    assert sanitize_csv_cell("Phoenix Team") == "Phoenix Team"
+    assert sanitize_csv_cell("Alice; Bob") == "Alice; Bob"
+    assert sanitize_csv_cell(42) == "42"
+    assert sanitize_csv_cell(None) == ""
+    assert sanitize_csv_cell("") == ""
+
+

@@ -381,6 +381,45 @@ def get_latest_events(conn: sqlite3.Connection, limit: int = 100) -> list[sqlite
     ).fetchall()
 
 
+def get_events(
+    conn: sqlite3.Connection,
+    team_id: Optional[int] = None,
+    event_type: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+) -> list[sqlite3.Row]:
+    """Retrieve audit events with optional team and type filters, ordered newest first.
+
+    Left-joins teams to provide team_name without leaking join codes or hashes.
+    Guaranteed parameterised query with limit clamped between 1 and 200, offset >= 0.
+    """
+    safe_limit = max(1, min(limit, 200))
+    safe_offset = max(0, offset)
+
+    conditions: list[str] = []
+    params: list[Union[int, str]] = []
+
+    if team_id is not None:
+        conditions.append("e.team_id = ?")
+        params.append(team_id)
+    if event_type:
+        conditions.append("e.type = ?")
+        params.append(event_type)
+
+    where_sql = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+    params.extend([safe_limit, safe_offset])
+
+    query = f"""
+        SELECT e.id, e.ts, e.team_id, e.type, e.detail, t.name AS team_name
+        FROM events e
+        LEFT JOIN teams t ON e.team_id = t.id
+        {where_sql}
+        ORDER BY e.id DESC
+        LIMIT ? OFFSET ?
+    """
+    return conn.execute(query, tuple(params)).fetchall()
+
+
 def get_team_by_code(conn: sqlite3.Connection, code: str) -> Optional[sqlite3.Row]:
     """Fetch team row by unique team code (case-insensitive lookup)."""
     return conn.execute(
@@ -993,6 +1032,38 @@ def get_admin_teams_data(conn: sqlite3.Connection) -> list[sqlite3.Row]:
             COUNT(p.checkpoint_id) AS cleared,
             (SELECT COUNT(*) FROM checkpoints) AS total,
             COALESCE(MAX(p.elapsed_s), 0) AS elapsed_at_last_unlock_s
+        FROM teams t
+        LEFT JOIN progress p ON t.id = p.team_id
+        GROUP BY t.id
+        ORDER BY t.id ASC
+        """
+    ).fetchall()
+
+
+def get_teams_export_data(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Retrieve team metrics and breakdown of clearance methods for CSV export.
+
+    Guarantees no sensitive tokens, device hashes, or join codes are returned.
+    Returns:
+    team_id, name, members, penalty_s, bonus_s, finished_at, cleared, total,
+    elapsed_at_last_unlock_s, last_unlock_ts, count_unlocked, count_skipped, count_admin.
+    """
+    return conn.execute(
+        """
+        SELECT
+            t.id AS team_id,
+            t.name,
+            t.members,
+            t.penalty_s,
+            t.bonus_s,
+            t.finished_at,
+            COUNT(p.checkpoint_id) AS cleared,
+            (SELECT COUNT(*) FROM checkpoints) AS total,
+            COALESCE(MAX(p.elapsed_s), 0) AS elapsed_at_last_unlock_s,
+            MAX(p.unlocked_at) AS last_unlock_ts,
+            COUNT(CASE WHEN p.how IN ('unlocked', 'gps') THEN 1 END) AS count_unlocked,
+            COUNT(CASE WHEN p.how = 'skipped' THEN 1 END) AS count_skipped,
+            COUNT(CASE WHEN p.how = 'admin' THEN 1 END) AS count_admin
         FROM teams t
         LEFT JOIN progress p ON t.id = p.team_id
         GROUP BY t.id

@@ -685,3 +685,21 @@
 **Q2: Why is adding `Cache-Control: no-cache` to `.js` static files important when deploying web applications without a frontend build step?**  
 **A2:** In architectures without asset bundling or content-hashed filenames (e.g. `app.a8f9c.js`), browsers aggressively cache static assets like `/app.js`. Setting `Cache-Control: no-cache` instructs browsers to revalidate the asset via conditional HTTP requests (ETag/If-None-Match) before using cache, ensuring players and developers instantly receive bug fixes and feature updates without needing manual hard cache refreshes.
 
+---
+
+## Task: Admin Events Tab and CSV Export (Bonus 3)
+
+### 5-Line Interview Summary
+- Extended `GET /api/gods/events` with parameterised filters (`team_id`, `type`), pagination (`offset`), and strict bounds (`limit` 1-200).
+- Built an organizer "Events" tab featuring live local-time timestamps, dropdown filtering, "Load more" pagination, and background-safe 5-second auto-refresh.
+- Implemented `GET /api/gods/export/teams.csv` and `GET /api/gods/export/events.csv` with standard `csv`, `Content-Disposition: attachment`, and UTF-8 BOM (`utf-8-sig`) for Excel.
+- Added pure formula injection sanitization (`sanitize_csv_cell`) neutralizing leading `=`, `+`, `-`, `@`, `\t`, or `\r` triggers, while strictly excluding tokens, join codes, hashes, and IP addresses.
+- Logged `export_downloaded` audit events upon export download and updated `/privacy` disclosing organizer export rights and mandatory post-event deletion.
+
+### Interview Questions & Answers
+**Q1: What is CSV formula injection (DDE injection), and how does `sanitize_csv_cell` prevent it without altering the underlying database data?**  
+**A1:** When spreadsheet software like Microsoft Excel or Google Sheets opens a CSV containing cells starting with `=`, `+`, `-`, or `@`, it interprets the text as executable formulas or external commands (such as `=HYPERLINK("http://attacker.com")` or DDE code execution). By prefixing any cell value starting with these characters (or tabs/returns) with an apostrophe (`'`), the spreadsheet is forced to treat the cell strictly as plain text, protecting organizers without mutating the original team names or data in SQLite.
+
+**Q2: Why is the CSV encoded with UTF-8 BOM (`utf-8-sig`) rather than standard UTF-8?**  
+**A2:** By default on Windows, Microsoft Excel attempts to decode plain UTF-8 CSV files using the operating system's legacy ANSI/system code page, which garbles special characters, accented letters, and non-ASCII text. Prepending the standard UTF-8 Byte Order Mark (`\xef\xbb\xbf` via Python's `utf-8-sig` encoding) explicitly signals to Excel that the byte stream is UTF-8, rendering all characters correctly across operating systems.
+

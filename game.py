@@ -31,6 +31,7 @@ EVENT_CHECKPOINT_FORCE_CLEARED = "checkpoint_force_cleared"
 EVENT_TEST_PING_REFUSED = "test_ping_refused"
 EVENT_TEST_MODE_TOGGLED = "test_mode_toggled"
 EVENT_EVENT_WIPED = "event_wiped"
+EVENT_EXPORT_DOWNLOADED = "export_downloaded"
 
 EVENT_TYPES = frozenset({
     EVENT_TEAM_REGISTERED,
@@ -54,7 +55,23 @@ EVENT_TYPES = frozenset({
     EVENT_TEST_PING_REFUSED,
     EVENT_TEST_MODE_TOGGLED,
     EVENT_EVENT_WIPED,
+    EVENT_EXPORT_DOWNLOADED,
 })
+
+
+def sanitize_csv_cell(value: object) -> str:
+    """Neutralize spreadsheet formula injection for CSV export cells.
+
+    If a text value begins with formula trigger characters ('=', '+', '-', '@',
+    '\\t', or '\\r'), prepend a single quote to force spreadsheet applications (Excel,
+    Google Sheets, LibreOffice) to treat the cell as plain text rather than executing code.
+    """
+    if value is None:
+        return ""
+    text = str(value)
+    if text and text[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return f"'{text}"
+    return text
 
 
 def is_skip_allowed(elapsed_on_checkpoint_s: float, wait_limit_s: int = 600) -> bool:
