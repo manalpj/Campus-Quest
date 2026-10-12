@@ -518,6 +518,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // --- Live Map Management ---
 
+  function updateLiveMapZoomClass() {
+    if (!liveMapInstance) return;
+    const mapElement = document.getElementById("gods-live-map");
+    if (!mapElement) return;
+    // When zoomed out far (<= 16), whole campus fits in frame: hide labels, show only dots
+    if (liveMapInstance.getZoom() <= 16) {
+      mapElement.classList.add("live-map-compact");
+    } else {
+      mapElement.classList.remove("live-map-compact");
+    }
+  }
+
   function initLiveMap(cfg) {
     if (liveMapInstance || !cfg) return;
     const mapElement = document.getElementById("gods-live-map");
@@ -544,6 +556,9 @@ document.addEventListener("DOMContentLoaded", () => {
       minZoom: cfg.zoom.min,
       maxZoom: cfg.zoom.max,
     }).addTo(liveMapInstance);
+
+    liveMapInstance.on("zoomend", updateLiveMapZoomClass);
+    updateLiveMapZoomClass();
   }
 
   async function loadLiveCheckpoints() {
@@ -622,27 +637,38 @@ document.addEventListener("DOMContentLoaded", () => {
         const isTest = Boolean(t.is_test);
 
         const iconHtml = `
-          <div class="team-marker-bubble ${isStale ? "stale" : ""} ${isTest ? "test-fix" : ""}">
-            <span class="marker-dot"></span>
-            <span>${escapeHtml(t.name)}</span>
-            ${isTest ? '<span class="marker-test-tag">TEST</span>' : ""}
+          <div class="team-marker-pin ${isStale ? "stale" : ""} ${isTest ? "test-fix" : ""}">
+            <div class="team-marker-label">
+              <span class="team-marker-name">${escapeHtml(t.name)}</span>
+              ${isTest ? '<span class="marker-test-tag">TEST</span>' : ""}
+            </div>
+            <div class="team-marker-dot"></div>
           </div>
         `;
 
         const icon = L.divIcon({
           className: "live-team-marker",
           html: iconHtml,
-          iconSize: [120, 28],
-          iconAnchor: [60, 14],
+          iconSize: [140, 48],
+          iconAnchor: [70, 41],
         });
 
         const popupContent = `
-          <strong>${escapeHtml(t.name)}</strong><br>
-          Status: ${isStale ? '<span style="color:var(--text-secondary)">Inactive / Stale (&gt;60s)</span>' : '<span style="color:var(--success)">Active</span>'}<br>
-          Cleared: ${t.cleared} of ${t.total}<br>
-          Accuracy: ${t.accuracy != null ? Math.round(t.accuracy) + " m" : "—"}<br>
-          Last seen: ${t.seconds_since_last_seen != null ? t.seconds_since_last_seen + "s ago" : "Never"}<br>
-          ${isTest ? '<span style="color:var(--attention);font-weight:600;">(Fix from Test Mode)</span>' : ""}
+          <div style="font-family: var(--font-stack); min-width: 140px;">
+            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 2px;">
+              Team #${t.id}
+            </div>
+            <div style="font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 6px;">
+              ${escapeHtml(t.name)}
+            </div>
+            <div style="font-size: 0.8125rem; line-height: 1.4; color: var(--text);">
+              <div><strong>Status:</strong> ${isStale ? '<span style="color:var(--text-secondary)">Inactive / Stale (&gt;60s)</span>' : '<span style="color:var(--success)">Active</span>'}</div>
+              <div><strong>Progress:</strong> ${t.cleared} of ${t.total} cleared</div>
+              <div><strong>Accuracy:</strong> ${t.accuracy != null ? Math.round(t.accuracy) + " m" : "—"}</div>
+              <div><strong>Last seen:</strong> ${t.seconds_since_last_seen != null ? t.seconds_since_last_seen + "s ago" : "Never"}</div>
+              ${isTest ? '<div style="color:var(--attention); font-weight:600; margin-top: 4px;">&#x26A0; Fix from Test Mode</div>' : ""}
+            </div>
+          </div>
         `;
 
         let marker = liveMapMarkers.get(t.id);
@@ -651,7 +677,7 @@ document.addEventListener("DOMContentLoaded", () => {
           marker.setIcon(icon);
           marker.setPopupContent(popupContent);
         } else {
-          marker = L.marker([t.lat, t.lng], { icon, title: t.name }).addTo(liveMapInstance);
+          marker = L.marker([t.lat, t.lng], { icon, title: `#${t.id} ${t.name}` }).addTo(liveMapInstance);
           marker.bindPopup(popupContent);
           liveMapMarkers.set(t.id, marker);
         }
@@ -697,7 +723,7 @@ document.addEventListener("DOMContentLoaded", () => {
         item.className = "live-team-sidebar-item";
         item.innerHTML = `
           <div class="live-team-sidebar-header">
-            <span class="live-team-sidebar-name">${escapeHtml(t.name)}</span>
+            <span class="live-team-sidebar-name">#${t.id} ${escapeHtml(t.name)}</span>
             <span class="badge-status ${hasFix ? (isStale ? "badge-attention" : "badge-running") : "badge-setup"}">
               ${hasFix ? (isStale ? "Stale" : "Live") : "No fix"}
             </span>

@@ -2907,62 +2907,89 @@ html:has(.board-body) {
 
 /* Custom Live Team Map Marker (Leaflet divIcon) */
 .live-team-marker {
-  background: transparent;
-  border: none;
+  background: transparent !important;
+  border: none !important;
 }
 
-.team-marker-bubble {
+.team-marker-pin {
+  width: 140px;
+  height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.team-marker-label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   background-color: var(--surface);
-  border: 2px solid var(--primary);
+  border: 1px solid var(--border);
   color: var(--text);
   font-family: var(--font-stack);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 14px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
   white-space: nowrap;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-  transform: translate(-50%, -50%);
-  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  margin-bottom: 3px;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   user-select: none;
+  transition: opacity 0.15s ease;
 }
 
-.team-marker-bubble .marker-dot {
-  width: 8px;
-  height: 8px;
+.team-marker-dot {
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background-color: var(--primary);
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
   flex-shrink: 0;
+  transition: transform 0.15s ease;
 }
 
-.team-marker-bubble.stale {
-  opacity: 0.55;
-  border-color: var(--text-secondary);
-  background-color: var(--bg);
-  color: var(--text-secondary);
+.team-marker-pin:hover .team-marker-dot {
+  transform: scale(1.2);
 }
 
-.team-marker-bubble.stale .marker-dot {
+.team-marker-pin.stale .team-marker-dot {
   background-color: var(--text-secondary);
+  opacity: 0.65;
 }
 
-.team-marker-bubble.test-fix {
-  border-color: var(--attention);
-  border-style: dashed;
+.team-marker-pin.stale .team-marker-label {
+  opacity: 0.65;
+  color: var(--text-secondary);
+  border-color: var(--border);
 }
 
-.team-marker-bubble.test-fix .marker-dot {
+.team-marker-pin.test-fix .team-marker-dot {
   background-color: var(--attention);
+  outline: 2px dashed var(--attention);
+  outline-offset: 1px;
 }
 
-.team-marker-bubble .marker-test-tag {
+.team-marker-pin.test-fix .team-marker-label {
+  border-color: var(--attention);
+}
+
+.team-marker-pin .marker-test-tag {
   font-size: 0.625rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--attention);
   text-transform: uppercase;
+}
+
+/* When zoomed out to whole campus view, hide labels so only dots are seen */
+.live-map-compact .team-marker-label {
+  display: none !important;
 }
 
 .live-team-sidebar-item {

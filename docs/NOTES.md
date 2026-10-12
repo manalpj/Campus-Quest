@@ -708,16 +708,17 @@
 ## Task: Admin Live Team Map (Bonus 4)
 
 ### 5-Line Interview Summary
-- Added `GET /api/gods/live` behind `require_admin` returning team names, latest coordinates, accuracy, seconds since last seen, cleared/total progress, and test mode flags.
+- Added `GET /api/gods/live` behind `require_admin` returning team IDs, names, latest coordinates, accuracy, seconds since last seen, cleared/total progress, and test mode flags.
 - Preserved privacy and security by strictly omitting device hashes, secret join codes, member rosters, and IP addresses, while avoiding historical GPS trails.
 - Added idempotent SQLite migrations for `last_fix_accuracy` and `last_fix_test` columns on `teams`, clearing them on game reset and wipe.
-- Built an organizer "Live Map" tab with Leaflet tiles, campus boundary constraints, checkpoint zone orientation circles, team markers, and a responsive sidebar.
-- Implemented state indicators showing active teams, stale teams (>60s inactivity) greyed out, test mode tags, and background-safe 5-second polling via `document.visibilityState`.
+- Anchored markers directly on exact GPS coordinates using bottom pin dots with team names floating above, dynamically hiding names at whole-campus zoom levels (zoom <= 16) to prevent clutter.
+- Provided prominent Team ID inspection in marker click popups (`Team #<id>`) and the sidebar list, alongside live status indicators and 5-second polling.
 
 ### Interview Questions & Answers
-**Q1: Why did you reuse and extend the `teams` table rather than creating a separate `team_positions` or `gps_breadcrumbs` table?**  
-**A1:** Campus Quest's privacy model and architecture explicitly prohibit storing player movement trails or historical surveillance breadcrumbs. The live map only requires the single most recent known position of each team, so storing `last_fix_lat`, `last_fix_lng`, `last_fix_accuracy`, and `last_fix_test` directly on the `teams` row keeps the schema simple, requires zero complex joins or historical table maintenance, and ensures all position data is instantly nullified upon game reset or wiped upon event conclusion.
+**Q1: How does the live map anchor team markers precisely to coordinates while showing team names above the dot, and how does zoom-dependent decluttering work?**  
+**A1:** The custom Leaflet `divIcon` uses a vertical column layout where a 14px dot is pinned at the bottom and the team name label sits directly above it. Leaflet's `iconAnchor` is positioned exactly at the center of the bottom dot `[70, 41]` within a fixed container, keeping the dot anchored to the exact GPS coordinate without shifting. On Leaflet `zoomend`, when organizers zoom out to see the entire campus in one frame (zoom $\le 16$), the CSS class `.live-map-compact` toggles on the map container to hide the label text, leaving only the clean dots visible to eliminate visual clutter.
 
 **Q2: Why do you check `document.visibilityState` during polling, and how does the live map avoid Leaflet rendering artifacts when switching tabs?**  
 **A2:** Mobile browsers throttle or suspend background JavaScript timers to conserve battery and CPU. Polling only when `document.visibilityState === "visible"` and the Live Map tab is active prevents unnecessary network traffic and memory churn. Furthermore, because Leaflet cannot calculate DOM dimensions for hidden elements (`display: none`), calling `map.invalidateSize()` after tab switching forces Leaflet to recalculate the container viewport and reload map tiles cleanly without grey boxes.
+
 
