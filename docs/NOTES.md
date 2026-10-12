@@ -721,4 +721,23 @@
 **Q2: Why do you check `document.visibilityState` during polling, and how does the live map avoid Leaflet rendering artifacts when switching tabs?**  
 **A2:** Mobile browsers throttle or suspend background JavaScript timers to conserve battery and CPU. Polling only when `document.visibilityState === "visible"` and the Live Map tab is active prevents unnecessary network traffic and memory churn. Furthermore, because Leaflet cannot calculate DOM dimensions for hidden elements (`display: none`), calling `map.invalidateSize()` after tab switching forces Leaflet to recalculate the container viewport and reload map tiles cleanly without grey boxes.
 
+---
+
+## Task: Documentation Update - README Refresh with Late-Stage Features and Test Metrics
+
+### 5-Line Interview Summary
+- Synchronized `README.md` test suite badges and execution documentation to reflect all 193 automated tests passing.
+- Documented power-up mechanic enhancements including the 5-minute hint penalty, alternate checkpoint awards, and 2m 30s speed qualification window.
+- Outlined the mobile HUD overhaul and drawer navigation menu consolidating team details, cleared route history, rules, and privacy.
+- Expanded the administrative documentation and API reference with the live team tracking map (`/api/gods/live`), event audit log filtering, and Excel UTF-8 BOM CSV exports.
+- Preserved user-customized demo walkthrough video links and updated CLI seed instructions with the `--demo` verified landmark flag and production safety guards.
+
+### Interview Questions & Answers
+**Q1: Why is it crucial to keep public documentation like the README and test badges synchronized with recent code changes?**  
+**A1:** The README is the primary entry point for evaluators and new developers. Inaccurate counts or outdated descriptions (such as stating 168 tests when 193 exist, or documenting old +3 min penalties instead of current +5 min rules) signal careless maintenance and break trust. Keeping API tables, architecture diagrams, and test badges synchronized guarantees that anyone evaluating the project sees a faithful, truthful representation of the working codebase.
+
+**Q2: Why did we document the CSV export formula injection mitigations and privacy safeguards in both the README design decisions and API tables?**  
+**A2:** Security and privacy decisions should be clearly articulated at the architectural level rather than hidden in code comments. Stating that CSV outputs neutralize formula injection attacks (`sanitize_csv_cell`) and that the live team map avoids recording invasive GPS breadcrumbs or storing device IP addresses demonstrates mature software engineering practices that prioritize data hygiene and user safety.
+
+
 

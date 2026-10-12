@@ -3,7 +3,7 @@
 > **Geofenced Clue Hunt for the IET DAVV Campus**  
 > Built for Google Developer Groups on Campus (GDGoC Indore) Technical Vertical Recruitment — **Task 3**.
 
-[![Test Suite](https://img.shields.io/badge/pytest-168%20passed-brightgreen.svg)](#running-tests)
+[![Test Suite](https://img.shields.io/badge/pytest-193%20passed-brightgreen.svg)](#running-tests)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-teal.svg)](https://fastapi.tiangolo.com/)
 [![SQLite](https://img.shields.io/badge/database-SQLite%20WAL-lightgrey.svg)](https://www.sqlite.org/)
@@ -13,8 +13,7 @@
 
 ## Submission Links
 
-- **Live Prototype**: `[https://campus-quest.up.railway.app](https://campus-quest.up.railway.app)` *(replace with active deployment link)*
-- **Demo Video Walkthrough**: `[https://youtu.be/your-demo-video](https://youtu.be/your-demo-video)` *(replace with video link)*
+- **Demo Video Walkthrough**: [Demo Video](https://drive.google.com/file/d/1Uepa_lLemFDYL4zZURX6zIaZJIueGZ0C/view?usp=sharing)
 - **GitHub Repository**: [https://github.com/manalpj/Campus-Quest](https://github.com/manalpj/Campus-Quest)
 
 ---
@@ -23,15 +22,16 @@
 
 **Campus Quest** is a mobile-first, location-based treasure hunt designed for college orientations (such as freshers' events at DAVV). 
 
-Teams of 2–10 students open the web application on a single smartphone and solve riddles leading to landmark locations across campus. To unlock the next clue, the team must **physically walk** to the spot. The server verifies their presence using real-time GPS coordinates and a mathematical geofence circle.
+Teams of 2–5 students open the web application on a single smartphone and solve riddles leading to landmark locations across campus. To unlock the next clue, the team must **physically walk** to the spot. The server verifies their presence using real-time GPS coordinates and a mathematical geofence circle.
 
 ### Key Highlights
 - **Zero App Installation**: Runs directly in mobile browsers using the browser Geolocation API and Leaflet.
 - **Server-Decided Progression**: Clients submit raw GPS fixes and button presses; the backend validates distances, streaks, timers, and unlocks.
-- **Power-up Mechanics**: Teams earn **Radar** (live distance readout for 60s) and **Radius Boost** (+30% geofence expansion for 120s) by clearing checkpoints, with an optional **Hint** (+3 min time penalty).
+- **Power-up Mechanics**: Teams earn **Radar** (live distance readout for 60s) or **Radius Boost** (+30% geofence expansion for 120s) on alternate checkpoints cleared within 2m 30s, alongside an optional **Hint** (+5 min time penalty).
 - **Stuck-Team Recovery**: Teams stuck on a clue can skip after a 10-minute wait (+10 min penalty), or organizers can force-clear checkpoints from the admin panel.
 - **Projector Big Screen**: A dedicated `/board` view displays real-time team standings and quest state for audience viewing.
-- **Resilient & Battery-Friendly**: Integrated Screen Wake Lock API, in-app browser warnings, offline reconnect banners, and sliding-window rate limiting.
+- **Organizer Live Map & Audit**: Live team tracking map with privacy safeguards, filterable audit event logging, and Excel-safe CSV export.
+- **Resilient Mobile UX**: Streamlined mobile HUD with sliding navigation drawer, Screen Wake Lock API, in-app browser warnings, offline reconnect banners, and sliding-window rate limiting.
 
 ---
 
@@ -44,11 +44,12 @@ Teams of 2–10 students open the web application on a single smartphone and sol
 3. **Physical Navigation & Hunting**:
    Teams view their current clue and a full-screen Leaflet map bounded strictly to DAVV campus. Their live location is indicated by an accessible blue dot. Uncleared checkpoint coordinates remain strictly hidden on the server.
 4. **Geofenced Unlocking**:
-   When a team reaches the target zone (25–100 m radius), their phone sends GPS fixes to `/api/ping`. Once the server confirms 2 consecutive valid fixes inside the radius, the checkpoint unlocks: a historical story popup appears, the next clue is revealed, and an earned power-up is added to their tray.
-5. **Tactical Power-ups**:
-   - **Hint**: Reveals an easier hint on demand at the cost of a +3 minute penalty added to adjusted time.
-   - **Radar**: Earned on odd-numbered clears; displays live distance in metres to the target spot for 60 seconds.
-   - **Radius Boost**: Earned on even-numbered clears; expands target geofences by +30% for 120 seconds.
+   When a team reaches the target zone (25–100 m radius), their phone sends GPS fixes to `/api/ping`. Once the server confirms 2 consecutive valid fixes inside the radius, the checkpoint unlocks: a historical story popup appears, the next clue is revealed, and an eligible power-up is added to their tray.
+5. **Tactical Power-ups & Speed Limits**:
+   - **Hint**: Reveals an easier hint on demand at the cost of a +5 minute penalty added to adjusted time.
+   - **Alternate Rewards**: Power-ups are awarded on alternate checkpoints (1st, 3rd, 5th...) provided the team unlocks the checkpoint within the 2m 30s speed threshold.
+   - **Radar**: Earned on odd eligible clears; displays live distance in metres to the target spot for 60 seconds (synchronized across pings and state polling).
+   - **Radius Boost**: Earned on even eligible clears; expands target geofences by +30% for 120 seconds.
 6. **Live Leaderboard & Finish**:
    Leaderboard standings update automatically every 5 seconds. Teams are ranked by:
    $$\text{Checkpoints Cleared (desc)} \longrightarrow \text{Adjusted Time (asc)} \longrightarrow \text{Earliest Last Unlock (asc)}$$
@@ -89,7 +90,7 @@ flowchart TD
             R_PING["/api/ping\nLocation Evaluation"]
             R_STATE["/api/state\nSync & Clues"]
             R_BOARD["/api/board & /api/leaderboard\n1s In-Memory Cache"]
-            R_GODS["/api/gods/*\nCRUD, Controls, Audit Logs"]
+            R_GODS["/api/gods/*\nCRUD, Controls, Live Map, CSV Export"]
         end
 
         subgraph Core["Pure Domain Engine (game.py)"]
@@ -134,6 +135,8 @@ flowchart TD
 - **Screen Wake Lock API over native app**: Delivers zero-install accessibility for freshers while preventing phones from sleeping and pausing location tracking.
 - **HttpOnly device token hashes**: Protects device cookies from XSS theft while storing only irreversible SHA-256 hashes in SQLite.
 - **Proportional percentage radius boost**: Scales geofence expansion fairly (+30%) across both tight landmark perimeters and wide open fields.
+- **Formula-sanitized CSV exports**: Neutralizes spreadsheet injection attacks (`sanitize_csv_cell`) with UTF-8 BOM encoding for Excel export of team standings and audit events.
+- **Privacy-conscious live tracking**: The organizer live team map (`/api/gods/live`) shows real-time locations and last-seen statuses without persisting or transmitting historical GPS trail breadcrumbs or IP addresses.
 - **Zero frontend build step**: Pure HTML5, CSS3, and vanilla JavaScript with Leaflet CDN ensures the frontend is editable directly and requires no bundlers.
 
 ---
@@ -160,7 +163,7 @@ flowchart TD
 | `POST` | `/api/join` | Rate limited | Pair phone to team code if device is unbound (409 if already bound) |
 | `GET` | `/api/state` | Device cookie | Authoritative team progress, clues, power-up inventory, and server time |
 | `POST` | `/api/ping` | Device cookie | Submit GPS fix; handles accuracy gating, speed check, streaks, and unlocks |
-| `POST` | `/api/powerup/{type}` | Device cookie | Activate `hint` (+3m penalty), `radar` (60s distance), or `boost` (+30% radius) |
+| `POST` | `/api/powerup/{type}` | Device cookie | Activate `hint` (+5m penalty), `radar` (60s distance), or `boost` (+30% radius) |
 | `POST` | `/api/skip` | Device cookie | Skip active checkpoint after 10m wait (+10m penalty; no power-up awarded) |
 | `GET` | `/api/leaderboard` | Public | Full ranked team standings cached with 1s TTL |
 
@@ -190,7 +193,10 @@ flowchart TD
 | `DELETE` | `/api/gods/teams/{id}` | Delete team and cascade records |
 | `POST` | `/api/gods/teams/reset` | Reset progress for all teams while preserving team registrations |
 | `POST` | `/api/gods/teams/{id}/reset` | Reset progress for a single team |
-| `GET` | `/api/gods/events` | Audit event log feed (paged, newest first) |
+| `GET` | `/api/gods/live` | Real-time team locations, status, accuracy, and last-seen intervals |
+| `GET` | `/api/gods/events` | Audit event log feed (filterable by `team_id` and `type`, paged) |
+| `GET` | `/api/gods/export/teams.csv` | Sanitized CSV export of team progress, penalties, and standings |
+| `GET` | `/api/gods/export/events.csv` | Sanitized CSV export of audit event logs |
 | `POST` | `/api/gods/wipe` | Purge all teams, hints, progress, and logs (requires typing `WIPE`) |
 
 ---
@@ -236,11 +242,15 @@ Key configuration variables in `.env`:
 - `CAMPUS_BOUNDS_*`: Geographic bounding box restricting Leaflet map views.
 
 ### 4. (Optional) Seed Sample Checkpoints
-Populate 6 sample DAVV campus checkpoints for development:
+Populate sample DAVV campus checkpoints for development:
 ```bash
+# Seed standard development checkpoints
 python seed.py
+
+# Or seed verified DAVV campus landmark checkpoints
+python seed.py --demo
 ```
-*(Refuses to run if `ENV=production`.)*
+*(Refuses to run if `ENV=production` without `--force`.)*
 
 ### 5. Run the Server
 ```bash
@@ -260,7 +270,7 @@ Open your browser:
 
 ## Running Tests
 
-The test suite contains **168 automated tests** covering pure domain calculations, concurrency locks, security, input validation, and API contracts.
+The test suite contains **193 automated tests** covering pure domain calculations, concurrency locks, security, input validation, and API contracts.
 
 Run the entire suite with `pytest`:
 ```bash
