@@ -155,6 +155,73 @@ def test_radar_powerup_activation_and_ping_exposure(test_setup):
     assert "radar_label" not in ping_after
 
 
+def test_radar_powerup_works_with_test_mode_pings(test_setup):
+    """Test mode pings (test: True) receive radar_distance_m and radar_label while radar is active."""
+    client = test_setup["client"]
+    conn = db.get_connection(test_setup["db_path"])
+
+    # Enable test mode on server
+    db.set_setting(conn, "test_mode", "1")
+
+    # Give team 1 radar
+    with db.write_tx(conn):
+        conn.execute("UPDATE teams SET radar_left = 1")
+
+    # Activate radar
+    radar_res = client.post("/api/powerup/radar")
+    assert radar_res.status_code == 200
+
+    # Simulated test ping returns distance and label
+    test_ping = client.post(
+        "/api/ping",
+        json={"lat": 22.6920, "lng": 75.8676, "accuracy": 5.0, "test": True},
+    ).json()
+    assert "radar_distance_m" in test_ping
+    assert test_ping["radar_distance_m"] > 0
+    assert "radar_label" in test_ping
+    assert test_ping["radar_label"].endswith("m")
+
+
+def test_radar_powerup_exposes_distance_in_api_state(test_setup):
+    """GET /api/state exposes radar_distance_m and radar_label when radar is active and last fix is known."""
+    client = test_setup["client"]
+    conn = db.get_connection(test_setup["db_path"])
+
+    # Give team a prior location fix and 1 radar
+    with db.write_tx(conn):
+        conn.execute(
+            "UPDATE teams SET last_fix_lat = 22.6920, last_fix_lng = 75.8676, radar_left = 1"
+        )
+
+    # Before activation: /api/state does not expose distance
+    s_before = client.get("/api/state").json()
+    assert "radar_distance_m" not in s_before
+    assert "radar_label" not in s_before
+
+    # Activate radar
+    radar_res = client.post("/api/powerup/radar")
+    assert radar_res.status_code == 200
+
+    # /api/state now exposes radar distance and label without waiting for a new ping!
+    s_during = client.get("/api/state").json()
+    assert s_during["radar_active"] is True
+    assert "radar_distance_m" in s_during
+    assert s_during["radar_distance_m"] > 0
+    assert "radar_label" in s_during
+    assert s_during["radar_label"].endswith("m")
+
+    # When radar expires, /api/state stops exposing distance
+    with db.write_tx(conn):
+        conn.execute("UPDATE teams SET radar_until = ?", (time.time() - 5.0,))
+
+    s_after = client.get("/api/state").json()
+    assert s_after["radar_active"] is False
+    assert "radar_distance_m" not in s_after
+    assert "radar_label" not in s_after
+
+
+
+
 def test_boost_powerup_expands_radius(test_setup):
     """Radius boost (+30%) allows unlocking at distances beyond the base 30m radius (up to 39m)."""
     client = test_setup["client"]

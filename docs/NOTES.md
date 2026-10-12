@@ -666,3 +666,22 @@
 
 **Q2: What is the difference between setting max_age versus omitting it on an authentication cookie?**  
 **A2:** Setting max_age (e.g. 28800 seconds) writes a persistent cookie to the client's persistent disk storage that survives closing and reopening the browser until the timer expires. Omitting max_age creates a transient in-memory browser session cookie that the browser automatically purges when the session ends or browser is closed, ensuring that reopening the application or opening on a new device necessitates freshly entering login credentials.
+
+---
+
+## Task: Fix Radar distance feedback in Test Mode
+
+### 5-Line Interview Summary
+- Diagnosed why the Radar HUD badge remained stuck displaying placeholder text `📡--` during simulated gameplay in Test Mode.
+- Identified that `sendSimulatedPing()` previously discarded `radar_label` and `radar_distance_m` values returned in `/api/ping` responses.
+- Added live distance synchronization to `GET /api/state` using `teams.last_fix_lat/lng` so page reloads immediately display distance without waiting for a new ping.
+- Added `Cache-Control: no-cache` middleware for `.js` static files to prevent stale browser caching during rapid iterative testing.
+- Created `test_radar_powerup_exposes_distance_in_api_state` and test mode ping tests in `tests/test_powerups.py` verifying distance feedback across polling and pings.
+
+### Interview Questions & Answers
+**Q1: Why did Radar show `📡--` even after reloading the page when Radar was actively running?**  
+**A1:** The `/api/state` polling endpoint previously returned only boolean status (`radar_active: true`) and time remaining (`radar_left_s`), omitting distance calculations because coordinates were originally handled only in `/api/ping`. By querying the team's `last_fix_lat` and `last_fix_lng` stored in SQLite, `/api/state` now computes Haversine distance and returns `radar_label` directly on every state fetch while Radar is active, ensuring players see their distance immediately on page load and power-up activation.
+
+**Q2: Why is adding `Cache-Control: no-cache` to `.js` static files important when deploying web applications without a frontend build step?**  
+**A2:** In architectures without asset bundling or content-hashed filenames (e.g. `app.a8f9c.js`), browsers aggressively cache static assets like `/app.js`. Setting `Cache-Control: no-cache` instructs browsers to revalidate the asset via conditional HTTP requests (ETag/If-None-Match) before using cache, ensuring players and developers instantly receive bug fixes and feature updates without needing manual hard cache refreshes.
+

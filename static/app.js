@@ -621,6 +621,16 @@ document.addEventListener('DOMContentLoaded', () => {
           fetchState();
           showFinishScreen();
         }
+
+        // Live Radar distance update
+        if (data.radar_distance_m !== undefined || data.radar_label) {
+          if (hudRadarBadge && hudRadarText) {
+            hudRadarBadge.hidden = false;
+            const label = data.radar_label || `${data.radar_distance_m} m`;
+            hudRadarText.textContent = label;
+            console.log('📡 Radar updated (simulated fix):', label);
+          }
+        }
       })
       .catch((err) => {
         showPowerupToast(`Network error: ${err.message}`);
@@ -971,10 +981,16 @@ document.addEventListener('DOMContentLoaded', () => {
         powerupRadarBadge.textContent = `x${state.radar_left || 0} (${state.radar_left_s || 0}s)`;
         btnPowerupRadar.classList.add('active');
         if (hudRadarBadge) hudRadarBadge.hidden = false;
+        if (hudRadarText && (state.radar_label || state.radar_distance_m !== undefined)) {
+          const label = state.radar_label || `${state.radar_distance_m} m`;
+          hudRadarText.textContent = label;
+          console.log('📡 Radar updated (state):', label);
+        }
       } else {
         powerupRadarBadge.textContent = `x${state.radar_left || 0}`;
         btnPowerupRadar.classList.remove('active');
         if (hudRadarBadge) hudRadarBadge.hidden = true;
+        if (hudRadarText) hudRadarText.textContent = '--';
       }
     }
 
@@ -1181,6 +1197,7 @@ document.addEventListener('DOMContentLoaded', () => {
             currentGameState.radar_active = false;
             if (btnPowerupRadar) btnPowerupRadar.classList.remove('active');
             if (hudRadarBadge) hudRadarBadge.hidden = true;
+            if (hudRadarText) hudRadarText.textContent = '--';
             if (powerupRadarBadge) powerupRadarBadge.textContent = `x${currentGameState.radar_left || 0}`;
           } else {
             if (powerupRadarBadge) powerupRadarBadge.textContent = `x${currentGameState.radar_left || 0} (${currentGameState.radar_left_s}s)`;
@@ -1310,6 +1327,9 @@ document.addEventListener('DOMContentLoaded', () => {
           renderTimerTick();
         } else if (type === 'radar') {
           showPowerupToast('📡 Radar active! Tracking live distance for 60s');
+          if (isTestModeActive && latestFix) {
+            sendSimulatedPing(latestFix.lat, latestFix.lng);
+          }
         } else if (type === 'boost') {
           showPowerupToast('⚡ Radius boost active! +30% radius for 120s');
         }

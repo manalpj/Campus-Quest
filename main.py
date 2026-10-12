@@ -242,6 +242,8 @@ async def security_and_header_middleware(request: Request, call_next):
     if request.url.path == "/gods" or request.url.path.startswith("/api/gods"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
         response.headers["Pragma"] = "no-cache"
+    elif request.url.path == "/" or request.url.path.endswith((".js", ".css", ".html")):
+        response.headers["Cache-Control"] = "no-cache"
 
     return response
 
@@ -1092,6 +1094,7 @@ def get_game_state(
     checkpoint_started_at_ms = None
     skip_wait_s = config.SKIP_WAIT_S
     skip_penalty_s = config.SKIP_PENALTY_S
+    next_cp = None
     if game_state == "running" and not team_row["finished_at"]:
         next_cp = db.get_team_next_checkpoint(conn, team["id"])
         if next_cp:
@@ -1108,7 +1111,7 @@ def get_game_state(
     boost_active = game.is_powerup_active(team_row["boost_until"], now)
     boost_left_s = max(0, int(team_row["boost_until"] - now)) if boost_active else 0
 
-    return {
+    state_resp = {
         "game_state": game_state,
         "server_now_ms": int(now * 1000),
         "started_at_ms": started_at_ms,
@@ -1136,6 +1139,23 @@ def get_game_state(
         "skip_penalty_s": skip_penalty_s,
         "test_mode": (db.get_setting(conn, "test_mode") == "1"),
     }
+
+    if (
+        radar_active
+        and next_cp
+        and team_row["last_fix_lat"] is not None
+        and team_row["last_fix_lng"] is not None
+    ):
+        dist_m = game.haversine_m(
+            team_row["last_fix_lat"],
+            team_row["last_fix_lng"],
+            next_cp["lat"],
+            next_cp["lng"],
+        )
+        state_resp["radar_distance_m"] = round(dist_m)
+        state_resp["radar_label"] = game.format_radar_label(dist_m)
+
+    return state_resp
 
 
 @app.post("/api/skip")
